@@ -28,20 +28,10 @@ College London.
 
 Mack Nixon ([mack.nixon@ucl.ac.uk](mailto:mack.nixon@ucl.ac.uk))
 
-<!-- TODO: how do we have an array of collaborators ? -->
-
 ### Research Software Engineering Contact
 
 Centre for Advanced Research Computing, University College London
 ([arc.collaborations@ucl.ac.uk](mailto:arc.collaborations@ucl.ac.uk))
-
-## Built With
-
-<!-- TODO: can cookiecutter make a list of frameworks? -->
-
-- [Framework 1](https://something.com)
-- [Framework 2](https://something.com)
-- [Framework 3](https://something.com)
 
 ## Getting Started
 
@@ -55,72 +45,39 @@ Centre for Advanced Research Computing, University College London
 
 <!-- How to build or install the application. -->
 
-We recommend installing in a project specific virtual environment created using
-a environment management tool such as
-[Conda](https://docs.conda.io/projects/conda/en/stable/). To install the latest
-development version of `ner-ocr` using `pip` in the currently active
-environment run
+### Installing `uv`
+
+[uv](https://docs.astral.sh/uv) is used for Python dependency management and managing virtual environments. You can install uv either using pipx or the uv installer script:
 
 ```sh
-pip install git+https://github.com/macknix/ner-ocr.git
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Alternatively create a local clone of the repository with
+### Installing Dependencies
+
+Once uv is installed, install dependencies:
 
 ```sh
-git clone https://github.com/macknix/ner-ocr.git
+uv sync
 ```
 
-and then install in editable mode by running
+### Activate your Python environment
 
 ```sh
-pip install -e .
+source .venv/bin/activate
 ```
 
-### Running Locally
+### Installing pre-commit hooks
 
-How to run the application on your local system.
-
-### Running Tests
-
-<!-- How to run tests on your local system. -->
-
-Tests can be run across all compatible Python versions in isolated environments
-using [`tox`](https://tox.wiki/en/latest/) by running
+Install `pre-commit` locally (in your activated `venv`) to aid code consistency (if you're looking to contribute).
 
 ```sh
-tox
-```
-
-To run tests manually in a Python environment with `pytest` installed run
-
-```sh
-pytest tests
-```
-
-again from the root of the repository.
-
-### Building Documentation
-
-The MkDocs HTML documentation can be built locally by running
-
-```sh
-tox -e docs
-```
-
-from the root of the repository. The built documentation will be written to
-`site`.
-
-Alternatively to build and preview the documentation locally, in a Python
-environment with the optional `docs` dependencies installed, run
-
-```sh
-mkdocs serve
+pre-commit install
 ```
 
 ## Roadmap
 
-- [x] Initial Research
+- [ ] Initial Research
 - [ ] Minimum viable product <-- You are Here
 - [ ] Alpha Release
 - [ ] Feature-Complete Release

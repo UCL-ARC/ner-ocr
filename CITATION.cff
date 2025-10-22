@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - family-names: "Nixon"
+    given-names: "Mack"
+    email: "mack.nixon@ucl.ac.uk"
+repository-code: "https://github.com/macknix/ner-ocr"
+title: "NER OCR: A pipeline for NER using OCR"
+license: "MIT"

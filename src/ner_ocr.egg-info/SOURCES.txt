@@ -1,0 +1,10 @@
+LICENSE.md
+README.md
+pyproject.toml
+src/ner_ocr/__init__.py
+src/ner_ocr/_version.py
+src/ner_ocr.egg-info/PKG-INFO
+src/ner_ocr.egg-info/SOURCES.txt
+src/ner_ocr.egg-info/dependency_links.txt
+src/ner_ocr.egg-info/top_level.txt
+tests/test_dummy.py

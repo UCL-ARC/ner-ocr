@@ -1,197 +1,19 @@
 """Utilities for bounding box extraction and OCR processing."""
 
-import signal
-import types
-from abc import ABC, abstractmethod
-from collections.abc import Generator
-from contextlib import contextmanager
-from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
-from threading import Lock
 from typing import Any
 
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-import pypdfium2 as pdfium
 from loguru import logger
 from paddleocr import PaddleOCR
 
-
-class SupportedExtensions(Enum):
-    # TO DO: check what this does
-    """Supported file extensions for OCR processing."""
-
-    PDF = ".pdf"
-    JPEG = ".jpeg"
-    JPG = ".jpg"
-    PNG = ".png"
-
-
-@dataclass
-class OCRResult:
-    """Structured OCR result for a single text detection."""
-
-    poly: list[list[float]]
-    text: str
-    score: float
-    box: list[float]
-    bbox_image: np.ndarray | None = None
-
-
-@dataclass
-class PageResult:
-    """Results for a single page."""
-
-    page: int
-    data: list[OCRResult]
-    original_image: np.ndarray | None = None
-
-
-class OCRError(Exception):
-    """Custom exception for OCR-related errors."""
-
-
-class ImageProcessingError(OCRError):
-    """Exception for image processing errors."""
-
-
-class PDFProcessingError(OCRError):
-    """Exception for PDF processing errors."""
-
-
-# TO do check how ABC works and what the point of this is
-class BaseOCRProcessor(ABC):
-    """Abstract base class for OCR processors."""
-
-    @abstractmethod
-    def extract(self, file_path: str | Path) -> list[PageResult]:
-        """Extract OCR results from a file."""
-
-
-class ImageProcessor:
-    """Handles image processing operations."""
-
-    # TO DO: check how staticmethod works
-    @staticmethod
-    def validate_image_path(image_path: str | Path) -> Path:
-        """
-        Validate that the image path exists and has a supported extension.
-
-        Args:
-            image_path: Path to the image file
-
-        Returns:
-            Validated Path object
-
-        Raises:
-            FileNotFoundError: If file doesn't exist
-            ValueError: If file extension is not supported
-
-        """
-        file_path = Path(image_path)
-
-        if not file_path.exists():
-            error_message = f"File not found: {image_path}"
-            raise FileNotFoundError(error_message)
-
-        extension = file_path.suffix.lower()
-        supported_extensions = {ext.value for ext in SupportedExtensions}
-
-        if extension not in supported_extensions:
-            error_message = (
-                f"Unsupported file extension: {extension}. "
-                f"Supported extensions: {supported_extensions}"
-            )
-            raise ValueError(error_message)
-
-        return file_path
-
-    @staticmethod
-    def calculate_resize_dimensions(
-        original_width: int, original_height: int, max_side_limit: int
-    ) -> tuple[int, int, float]:
-        """
-        Calculate new dimensions for resizing while maintaining aspect ratio.
-
-        Args:
-            original_width: Original image width
-            original_height: Original image height
-            max_side_limit: Maximum allowed size for any side
-
-        Returns:
-            Tuple of (new_width, new_height, scale_factor)
-
-        """
-        if max(original_height, original_width) <= max_side_limit:
-            return original_width, original_height, 1.0
-
-        scale_factor = max_side_limit / max(original_height, original_width)
-        new_width = int(original_width * scale_factor)
-        new_height = int(original_height * scale_factor)
-
-        return new_width, new_height, scale_factor
-
-    @staticmethod
-    def resize_image_to_limit(
-        image_path: Path, max_side_limit: int = 1500
-    ) -> tuple[Path, np.ndarray]:
-        """
-        Resize image if any side exceeds the max_side_limit while maintaining aspect ratio.
-
-        Args:
-            image_path: Path to input image
-            max_side_limit: Maximum allowed size for any side
-
-        Returns:
-            Tuple of (path_to_processed_image, processed_image_array)
-
-        Raises:
-            ImageProcessingError: If image cannot be loaded or processed
-
-        """
-        try:
-            image = cv2.imread(str(image_path))
-        except Exception as e:
-            msg = f"Could not load image: {image_path}, error: {e}"
-            raise ImageProcessingError(msg) from e
-
-        if image is None:
-            msg = f"Could not load image: {image_path}"
-            raise ImageProcessingError(msg)
-
-        height, width = image.shape[:2]
-        new_width, new_height, scale_factor = (
-            ImageProcessor.calculate_resize_dimensions(width, height, max_side_limit)
-        )
-
-        if scale_factor == 1.0:
-            logger.info(
-                f"Image size ({width}x{height}) is within limit ({max_side_limit})"
-            )
-            return image_path, image
-
-        logger.info(
-            f"Image size ({width}x{height}) exceeds max_side_limit of {max_side_limit}. "
-            f"Resizing to ({new_width}x{new_height})"
-        )
-
-        # Resize with high quality interpolation
-        resized_image = cv2.resize(
-            image, (new_width, new_height), interpolation=cv2.INTER_AREA
-        )
-
-        # Save resized image to a temporary path
-        resized_image_path = image_path.parent / f"resized_{image_path.name}"
-        success = cv2.imwrite(str(resized_image_path), resized_image)
-
-        if not success:
-            msg = f"Failed to save resized image to: {resized_image_path}"
-            raise ImageProcessingError(msg)
-
-        logger.info(f"Resized image saved to: {resized_image_path}")
-        return resized_image_path, resized_image
+from .custom_types import BaseOCRProcessor, OCRResult, PageResult, SupportedExtensions
+from .exceptions import ImageProcessingError, OCRError
+from .image_processing import ImageProcessor
+from .pdf_processing import PDFProcessor
+from .utils import timeout_context
 
 
 class BoundingBoxExtractor:
@@ -256,85 +78,6 @@ class BoundingBoxExtractor:
         rect_crop_rgba[:, :, 3] = mask  # Set alpha channel
 
         return rect_crop_rgba
-
-
-@contextmanager
-def timeout_context(duration: int) -> Generator[None, None, None]:
-    """Context manager for adding timeout to operations."""
-
-    def timeout_handler(_signum: int, _frame: types.FrameType | None) -> None:
-        error_message = f"Operation timed out after {duration} seconds"
-        raise TimeoutError(error_message)
-
-    old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(duration)
-    try:
-        yield
-    finally:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old_handler)
-
-
-class PDFProcessor:
-    """Handles PDF processing operations."""
-
-    def __init__(self) -> None:
-        """Initialise PDF processor with thread lock."""
-        self._lock = Lock()
-
-    def pdf_to_images(
-        self, pdf_path: Path, max_num_imgs: int | None = None, zoom: float = 2.0
-    ) -> list[np.ndarray]:
-        """
-        Convert PDF pages to images using pdfium (same as PaddleOCR).
-
-        Args:
-            pdf_path: Path to PDF file
-            max_num_imgs: Maximum number of images to extract
-            zoom: Zoom factor for rendering (higher = better quality)
-
-        Returns:
-            List of numpy arrays (cv2 images), one per page
-
-        Raises:
-            PDFProcessingError: If PDF processing fails
-
-        """
-        logger.info(f"Converting PDF to images: {pdf_path}")
-        images: list[np.ndarray] = []
-
-        try:
-            # Read PDF bytes
-            with Path.open(pdf_path, "rb") as f:
-                bytes_ = f.read()
-
-            with self._lock:
-                doc = pdfium.PdfDocument(bytes_)
-                try:
-                    for page_idx, page in enumerate(doc):
-                        if max_num_imgs is not None and len(images) >= max_num_imgs:
-                            break
-
-                        logger.debug(f"Processing PDF page {page_idx}")
-
-                        # Use same settings as PaddleOCR
-                        deg = 0
-                        image = page.render(scale=zoom, rotation=deg).to_pil()
-                        image = image.convert("RGB")
-                        image = np.array(image)
-                        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-                        images.append(image)
-
-                finally:
-                    doc.close()
-
-        except Exception as e:
-            error_message = f"Error processing PDF {pdf_path}: {e}"
-            raise PDFProcessingError(error_message) from e
-
-        else:
-            logger.info(f"Converted {len(images)} pages to images from PDF")
-            return images
 
 
 class PaddleOCRWrapper(BaseOCRProcessor):
@@ -453,7 +196,7 @@ class PaddleOCRWrapper(BaseOCRProcessor):
         for result in results:
             parsed_result = self._parse_ocr_result(result, processed_image)
             page_result = PageResult(
-                page=result["page_index"],
+                page=1,  # Images have a single page
                 data=parsed_result,
                 original_image=processed_image,
             )

@@ -1,110 +1,81 @@
-[build-system]
-build-backend = "setuptools.build_meta"
-requires = [
-    "setuptools",
-    "setuptools-scm",
-]
-
 [dependency-groups]
 dev = [
-    "build",
-    "mypy",
-    "pre-commit",
-    "ruff",
-    "tox",
-    "twine",
-]
-docs = [
-    "mkdocs",
-    "mkdocs-include-markdown-plugin",
-    "mkdocs-material",
-    "mkdocstrings",
-    "mkdocstrings-python",
-]
-test = [
-    "pytest",
-    "pytest-cov",
+    "mypy>=1.17.1",
+    "pre-commit>=4.3.0",
+    "pytest-cov>=6.2.1",
+    "pytest-env>=1.1.5",
+    "pytest-mock>=3.14.1",
+    "pytest>=8.4.1",
+    "ruff>=0.12.11",
 ]
 
 [project]
 authors = [
-    {email = "mack.nixon@ucl.ac.uk", name = "Mack Nixon"},
-]
-classifiers = [
-    "Operating System :: POSIX",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3 :: Only",
-    "Typing :: Typed",
+    "Mack Nixon <mack.nixon@ucl.ac.uk>",
 ]
 dependencies = [
+    "fitz>=0.0.1.dev2",
+    "frontend>=0.0.3",
+    "ipython>=9.6.0",
+    "loguru>=0.7.3",
+    "pdf2image>=1.17.0",
+    "pydantic>=2.12.3",
+    "pypdfium2>=5.0.0",
 ]
-description = "A pipeline for NER using OCR"
-dynamic = [
-    "version",
-]
-keywords = [
-]
-license = "MIT"
-license-files = [
-    "LICENSE.md",
-]
+description = "Tool for extracting ner data from hand written forms using ocr/llms"
 name = "ner-ocr"
 readme = "README.md"
-requires-python = ">=3.13"
-urls.homepage = "https://github.com/macknix/ner-ocr"
+requires-python = ">=3.13.5"
+version = "0.1.0"
 
-[tool.coverage]
-report = {sort = "cover"}
-run = {branch = true, parallel = true, source = [
-    "ner-ocr",
-]}
-paths.source = [
-    "src",
-    ".tox*/*/lib/python*/site-packages",
-]
-
-[tool.mypy]
-explicit_package_bases = true
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = "loguru.*"
 
 [tool.pytest.ini_options]
-addopts = [
-    "--color=yes",
-    "--import-mode=importlib",
-    "--verbose",
-]
-testpaths = [
-    "tests",
-]
+addopts = ["--color=yes", "--import-mode=importlib", "--verbose"]
+pythonpath = "."
+testpaths = ["tests"]
 
 [tool.ruff]
+extend-exclude = ["app/migrations/versions/*.py", "docs/*.py"]
 fix = true
 force-exclude = true
+target-version = "py312"
 lint.ignore = [
+    "ANN003", # kwargs type annotation required
+    "ARG002", # kwargs unused
     "COM812", # trailing commas (ruff-format recommended)
+    "D104", # module docstring
     "D203", # no-blank-line-before-class
+    "D205", # missing-blank-line-after-summary
     "D212", # multi-line-summary-first-line
+    "D403", # forcing upper-case
     "D407", # removed dashes lines under sections
     "D417", # argument description in docstring (unreliable)
+    "E501", # let's keep this for now (long lines)
+    "ERA001", # allow commented code -- FOR NOW!
+    "FIX002", # implicit trust that TODOs are not trivial, or else they would be fixed
     "ISC001", # simplify implicit str concatenation (ruff-format recommended)
+    "RUF012", # where ruff wants type annotations using ClassVar for subclasses - mypy doesnt care, so why would we?
+    "TD002", # name for TO DO
+    "TD003", # pedantic issue number requester in to dos
 ]
 lint.per-file-ignores = {"tests*" = [
+    "ANN001", # No return type annotation
+    "ANN201", # No return type annotation
+    "ARG001", # Unused function argument
+    "D100", # Missing docstring in public module
+    "D103", # Missing docstring in public function
     "INP001", # File is part of an implicit namespace package.
-    "S101", # Use of `assert` detected
+    "PLR0913", # Too many arguments in function definition
+    "PLR2004", # Magic value used in comparison
+    "S101", # Use of `assert` detected,
+    "SLF001", # accessing private members
 ]}
-lint.select = [
-    "ALL",
-]
-lint.isort.known-first-party = [
-    "ner_ocr",
-]
+lint.select = ["ALL"]
 lint.mccabe.max-complexity = 18
-lint.pep8-naming.classmethod-decorators = [
-    "classmethod",
-]
-
-[tool.setuptools_scm]
-local_scheme = "no-local-version"
-write_to = "src/ner_ocr/_version.py"
+lint.pep8-naming.classmethod-decorators = ["classmethod"]
 
 [tool.tomlsort]
 all = true
@@ -112,27 +83,3 @@ spaces_indent_inline_array = 4
 trailing_comma_inline_array = true
 overrides."project.classifiers".inline_arrays = false
 overrides."tool.coverage.paths.source".inline_arrays = false
-overrides."tool.tox.env.docs.commands".inline_arrays = false
-overrides."tool.tox.env_run_base.commands".inline_arrays = false
-
-[tool.tox]
-env_list = [
-]
-env_run_base = {commands = [
-    [
-        "pytest",
-        "--cov",
-        "--cov-report=xml",
-    ],
-], dependency_groups = [
-    "test",
-]}
-env.docs = {commands = [
-    [
-        "mkdocs",
-        "build",
-        "--strict",
-    ],
-], dependency_groups = [
-    "docs",
-]}

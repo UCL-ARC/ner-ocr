@@ -38,6 +38,14 @@ class PageResult:
     original_image: np.ndarray | None = None
 
 
+@dataclass
+class TransformerResult:
+    """Result from Transformer-based OCR model."""
+
+    transformer_text: str
+    score: float | None = None
+
+
 # TO do check how ABC works and what the point of this is
 class BaseOCRProcessor(ABC):
     """Abstract base class for OCR processors."""
@@ -45,3 +53,11 @@ class BaseOCRProcessor(ABC):
     @abstractmethod
     def extract(self, file_path: str | Path) -> list[PageResult]:
         """Extract OCR results from a file."""
+
+
+class BaseTransformerOCR(ABC):
+    """Abstract base class for Transformer-based OCR models."""
+
+    @abstractmethod
+    def predict(self, image: np.ndarray) -> TransformerResult:
+        """Perform OCR on the input image and return recognized text."""

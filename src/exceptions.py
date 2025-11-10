@@ -11,3 +11,7 @@ class ImageProcessingError(OCRError):
 
 class PDFProcessingError(OCRError):
     """Exception for PDF processing errors."""
+
+
+class TransformerError(OCRError):
+    """Exception for Transformer OCR-related errors."""

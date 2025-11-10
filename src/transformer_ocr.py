@@ -1,5 +1,7 @@
 """Transformer-based OCR module using Microsoft's TrOCR model."""
 
+from enum import Enum
+
 import numpy as np
 import torch
 import torch.nn.functional as f
@@ -8,6 +10,21 @@ from PIL import Image
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
 from .custom_types import BaseTransformerOCR, TransformerResult
+from .exceptions import TransformerError
+
+
+class TrOCRModels(Enum):
+    """Available TrOCR models with their Hugging Face identifiers."""
+
+    # Base models
+    BASE_HANDWRITTEN = "microsoft/trocr-base-handwritten"
+    BASE_PRINTED = "microsoft/trocr-base-printed"
+    BASE_STR = "microsoft/trocr-base-str"  # Scene text recognition
+
+    # Large models (better accuracy, slower inference)
+    LARGE_HANDWRITTEN = "microsoft/trocr-large-handwritten"
+    LARGE_PRINTED = "microsoft/trocr-large-printed"
+    LARGE_STR = "microsoft/trocr-large-str"
 
 
 class TrOCRWrapper(BaseTransformerOCR):
@@ -18,35 +35,42 @@ class TrOCRWrapper(BaseTransformerOCR):
 
     def __init__(
         self,
-        model_name: str = "microsoft/trocr-base-handwritten",
+        model: TrOCRModels = TrOCRModels.BASE_HANDWRITTEN,
         cache_dir: str | None = None,
         device: str | None = None,
     ) -> None:
         """
-        Initialize the TrOCR processor and model.
+        Initialise the TrOCR processor and model.
 
         Args:
-            model_name: Name of the pre-trained TrOCR model from Hugging Face.
+            model: Name of the pre-trained TrOCR model.
             cache_dir: Optional directory path for caching model files.
             device: Device to run the model on ('cpu', 'cuda', or 'mps').
 
         """
-        self.model_name = model_name
+        if not isinstance(model, TrOCRModels):
+            available_models = [m.name for m in TrOCRModels]
+            error_msg = (
+                f"Invalid model type {model}. Must be one of: {available_models}. "
+            )
+            raise TransformerError(error_msg)
+
+        self.model_name = model.value
         self.cache_dir = cache_dir
         self.device = self._get_device(device)
 
-        logger.info(f"Loading TrOCR model '{model_name}'...")
-        logger.info(f"Cache directory: {cache_dir}")
+        logger.info(f"Loading TrOCR model '{self.model_name}'...")
+        logger.info(f"Cache directory: {self.cache_dir}")
         logger.info(f"Device: {self.device}")
 
         try:
             # Load processor (for image preprocessing + text decoding)
             self.processor = TrOCRProcessor.from_pretrained(
-                model_name, cache_dir=cache_dir
+                self.model_name, cache_dir=self.cache_dir
             )
             # Load model (encoder + decoder)
             self.model = VisionEncoderDecoderModel.from_pretrained(
-                model_name, cache_dir=cache_dir
+                self.model_name, cache_dir=self.cache_dir
             )
 
             # Move model to the selected device and set to eval mode
@@ -107,9 +131,7 @@ class TrOCRWrapper(BaseTransformerOCR):
             if len(image.shape) == 3 and image.shape[2] == 4:  # noqa: PLR2004
                 # RGBA → RGB
                 image_rgb = image[:, :, :3]
-            elif len(image.shape) == 3 and image.shape[2] == 3:  # noqa: PLR2004
-                # Assume BGR (OpenCV format) → RGB
-                image_rgb = image[:, :, ::-1]
+            # TO DO: confirm if BGR to RGB conversion is needed
             else:
                 image_rgb = image  # Grayscale or already RGB
 

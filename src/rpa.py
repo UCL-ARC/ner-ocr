@@ -41,7 +41,18 @@ class RPAProcessor(BaseRPAProcessor):
     def _compute_semantic_similarity(
         self, text1: str, text2: str, method: str
     ) -> float:
-        """Compute semantic similarity between two texts using specified method."""
+        """
+        Compute semantic similarity between two texts using specified method.
+
+        Args:
+            text1: First text string
+            text2: Second text string
+            method: Similarity method to use ("fuzzy" supported currently)
+            Returns:"
+        Returns:
+            Similarity score between 0 and 1
+
+        """
         if method == "fuzzy":
             # TO DO: Explore other fuzzy matching methods
             score = fuzz.partial_ratio(text1.lower(), text2.lower())
@@ -56,7 +67,18 @@ class RPAProcessor(BaseRPAProcessor):
     def _rectangle_rectangle_intersection(
         self, rect1: list[list[float]], rect2: list[list[float]], rect1_pad: float = 0
     ) -> bool:
-        """Check if two rectangles intersect, with optional padding on rect1."""
+        """
+        Check if two rectangles intersect, with optional padding on rect1.
+
+        Args:
+            rect1: First rectangle defined by 4 corner list of [x, y] points
+            rect2: Second rectangle defined by 4 corner list of [x, y] points
+            rect1_pad: Padding to expand rect1 by (in pixels)
+
+        Returns:
+            True if rectangles intersect, False otherwise
+
+        """
         # first expand rect1 by rect1_pad
         rect1_x1 = min([point[0] for point in rect1]) - rect1_pad
         rect1_x2 = max([point[0] for point in rect1]) + rect1_pad
@@ -79,7 +101,18 @@ class RPAProcessor(BaseRPAProcessor):
     def _circle_rectangle_intersection(
         self, circle_x: float, circle_y: float, radius: float, rect: list[list[float]]
     ) -> bool:
-        """Check if a circle intersects with a rectangle."""
+        """
+        Check if a circle intersects with a rectangle.
+
+        Args:
+            circle_x: X coordinate of circle center
+            circle_y: Y coordinate of circle center
+            radius: Radius of the circle
+            rect: Rectangle defined by 4 corner list of [x, y] points
+        Returns:
+            True if circle intersects rectangle, False otherwise.
+
+        """
         rect_x1 = min([point[0] for point in rect])
         rect_x2 = max([point[0] for point in rect])
         rect_y1 = min([point[1] for point in rect])
@@ -217,7 +250,16 @@ class RPAProcessor(BaseRPAProcessor):
     def _postional_search(
         self, page: PageResult, query: PositionalQuery
     ) -> list[OCRResult]:
-        """Perform positional search for a single query."""
+        """
+        Perform positional search for a single query.
+
+        Args:
+            page: PageResult containing OCR data
+            query: PositionalQuery with x, y, and search_radius
+        Returns:
+            List of OCRResult that match the positional query
+
+        """
         matches = []
 
         for ocr_result in page.data:
@@ -232,7 +274,16 @@ class RPAProcessor(BaseRPAProcessor):
     def _semantic_search(
         self, page: PageResult, query: SemanticQuery
     ) -> list[OCRResult]:
-        """Perform semantic search for a single query."""
+        """
+        Perform semantic search for a single query.
+
+        Args:
+            page: PageResult containing OCR data
+            query: SemanticQuery with text and threshold
+        Returns:
+            List of OCRResult that match the semantic query
+
+        """
         semantic_matches = []
         for ocr_result in page.data:
             score = self._compute_semantic_similarity(
@@ -261,7 +312,16 @@ class RPAProcessor(BaseRPAProcessor):
         page: PageResult,
         query: PositionalQuery | SemanticQuery,
     ) -> SearchResult:
-        """Search for queries in the provided OCR results."""
+        """
+        Search for queries in the provided OCR results.
+
+        Args:
+            page: PageResult containing OCR data
+            query: PositionalQuery or SemanticQuery
+        Returns:
+            SearchResult containing matched OCR results and metadata
+
+        """
         if self.search_type == "semantic":
             if not isinstance(query, SemanticQuery):
                 error_message = "Semantic search requires a SemanticQuery"

@@ -46,7 +46,33 @@ class TransformerResult:
     score: float | None = None
 
 
-# TO do check how ABC works and what the point of this is
+@dataclass
+class SearchResult:
+    """Structured result for a single search match."""
+
+    page_result: PageResult
+    search_type: str
+
+
+@dataclass
+class PositionalQuery:
+    """Structured positional query for searching text in OCR results."""
+
+    x: float
+    y: float
+    search_radius: float = 50.0  # Pixel radius
+
+
+@dataclass
+class SemanticQuery:
+    """Structured semantic query for searching text in OCR results."""
+
+    text: str
+    threshold: float = 0.75  # Similarity threshold
+    search_padding: float = 50.0  # Pixel radius
+    search_type: str = "fuzzy"  # Type of semantic search
+
+
 class BaseOCRProcessor(ABC):
     """Abstract base class for OCR processors."""
 
@@ -61,3 +87,15 @@ class BaseTransformerOCR(ABC):
     @abstractmethod
     def predict(self, image: np.ndarray) -> TransformerResult:
         """Perform OCR on the input image and return recognized text."""
+
+
+class BaseRPAProcessor(ABC):
+    """Abstract base class for RPA processors."""
+
+    @abstractmethod
+    def search(
+        self,
+        ocr_results: PageResult,
+        query: PositionalQuery | SemanticQuery,
+    ) -> SearchResult:
+        """Search OCR results based on provided queries."""

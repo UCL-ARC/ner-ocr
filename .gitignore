@@ -182,4 +182,5 @@ misc/
 
 # Data
 models/*
+data/*
 *.DS_Store

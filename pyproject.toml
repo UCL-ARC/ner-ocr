@@ -22,6 +22,7 @@ dependencies = [
     "pdf2image>=1.17.0",
     "pydantic>=2.12.3",
     "pypdfium2>=5.0.0",
+    "pyyaml>=6.0.3",
     "transformers>=4.57.1",
 ]
 description = "Tool for extracting ner data from hand written forms using ocr/llms"

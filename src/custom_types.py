@@ -27,6 +27,8 @@ class OCRResult:
     score: float
     box: list[float]
     bbox_image: np.ndarray | None = None
+    transformer_text: str | None = None
+    transformer_score: float | None = None
 
 
 @dataclass

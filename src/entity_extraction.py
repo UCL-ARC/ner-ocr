@@ -1,8 +1,10 @@
 """LLM based entity extraction."""
 
 import gc
+import time
 from enum import Enum
 
+import torch
 from langchain_core.output_parsers import PydanticOutputParser
 from loguru import logger
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -16,8 +18,8 @@ class QwenModels(Enum):
     """Available Qwen models with their Hugging Face identifiers."""
 
     # QWEN3_8B = "Qwen/Qwen3-8B"
-    QWEN3_1_7B = "Qwen/Qwen3-1.7B"
     QWEN3_4B_INSTRUCT_2507 = "Qwen/Qwen3-4B-Instruct-2507"
+    QWEN3_1_7B = "Qwen/Qwen3-1.7B"
 
 
 class QwenEntityExtractor(EntityExtractor):
@@ -49,6 +51,7 @@ class QwenEntityExtractor(EntityExtractor):
         self._is_loaded = False
 
         try:
+            logger.info(f"loading model: {self.model_name}")
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self.model_name, cache_dir=self.cache_dir
             )
@@ -65,7 +68,7 @@ class QwenEntityExtractor(EntityExtractor):
     ) -> dict:
         """Parse the model output using the provided parser + model specific tokens."""
         cot_substring = "</think>"
-        logger.info(f"parsing output: {output}")
+        logger.info("parsing output")
         if cot_substring in output:
             output = output.split(cot_substring)[-1]
 
@@ -88,7 +91,7 @@ class QwenEntityExtractor(EntityExtractor):
             return_dict=True,
         ).to(self.model.device)
         outputs = self.model.generate(
-            **inputs, max_new_tokens=512
+            **inputs, max_new_tokens=1000
         )  # TO DO: add control for this
         return self.tokenizer.decode(outputs[0][inputs["input_ids"].shape[-1] :])
 
@@ -96,6 +99,7 @@ class QwenEntityExtractor(EntityExtractor):
         self, text: str, entity_model: type[T], kwargs: dict | None = None
     ) -> dict[str, T]:
         """Extract entities from the provided text."""
+        logger.info("extracting entities...")
         if kwargs is None:
             kwargs = {}
 
@@ -108,7 +112,6 @@ class QwenEntityExtractor(EntityExtractor):
             "Extract the following entities from the text and return them in the specified format:",
         )
         system_prompt = f"{base_prompt}\n{format_instructions}"
-        logger.info(f"System prompt: {system_prompt}")
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": text},
@@ -128,6 +131,19 @@ class QwenEntityExtractor(EntityExtractor):
             self._is_loaded = False
 
             gc.collect()
+
+            # Clear CUDA cache if available
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()  # Wait for GPU operations to complete
+                logger.debug("Cleared CUDA cache")
+
+            # Clear MPS cache if available (Apple Silicon)
+            if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+                logger.debug("Cleared MPS cache")
+
+            time.sleep(20)
             logger.info("Model offloaded from memory successfully.")
         except Exception as e:
             error_msg = f"Error offloading model: {e}"
@@ -146,5 +162,5 @@ if __name__ == "__main__":
         extractor = QwenEntityExtractor(model, cache_dir="../models")
         text = "37 sunlight square, london uk, wc2n 4hh"
         result = extractor.extract_entities(text, AddressEntity)
-        logger.info("Extracted Entities:", result)
+        logger.info(f"Extracted Entities: {result}")
         extractor.offload_model()

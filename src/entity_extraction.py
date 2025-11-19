@@ -76,7 +76,10 @@ class QwenEntityExtractor(EntityExtractor):
         if output.endswith(eos_string):
             output = output[: -len(eos_string)]
 
-        output = parser.parse(output) if parser else output.strip()
+        try:
+            output = parser.parse(output) if parser else output.strip()
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Error parsing output: {e}")
 
         return {"content": output}
 

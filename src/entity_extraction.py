@@ -56,7 +56,10 @@ class QwenEntityExtractor(EntityExtractor):
                 self.model_name, cache_dir=self.cache_dir
             )
             self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_name, cache_dir=self.cache_dir, device_map="auto"
+                self.model_name,
+                cache_dir=self.cache_dir,
+                device_map="auto",
+                torch_dtype="auto",
             )  # Note we have device map as auto here
             self._is_loaded = True
         except Exception as e:

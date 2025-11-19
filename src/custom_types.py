@@ -4,8 +4,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from typing import TypeVar
 
 import numpy as np
+from pydantic import BaseModel
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class SupportedExtensions(Enum):
@@ -101,3 +105,13 @@ class BaseRPAProcessor(ABC):
         query: PositionalQuery | SemanticQuery,
     ) -> SearchResult:
         """Search OCR results based on provided queries."""
+
+
+class EntityExtractor(ABC):
+    """Abstract base class for LLM-based entity extraction."""
+
+    @abstractmethod
+    def extract_entities(
+        self, text: str, entity_model: type[T], kwargs: dict
+    ) -> dict[str, T]:
+        """Extract entities from the provided text."""

@@ -17,6 +17,7 @@ dependencies = [
     "fitz>=0.0.1.dev2",
     "frontend>=0.0.3",
     "ipython>=9.6.0",
+    "langchain-core>=1.0.5",
     "levenshtein>=0.27.3",
     "loguru>=0.7.3",
     "pdf2image>=1.17.0",

@@ -45,6 +45,7 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 # 5) Install GPU-enabled PyTorch
 # -------------------------------
 RUN pip3 install --no-cache-dir torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu126
+RUN pip3 install --no-cache-dir accelerate>=1.12.0
 
 # -------------------------------
 # 6) Install GPU-enabled PaddlePaddle

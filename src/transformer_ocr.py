@@ -66,7 +66,7 @@ class TrOCRWrapper(BaseTransformerOCR):
         try:
             # Load processor (for image preprocessing + text decoding)
             self.processor = TrOCRProcessor.from_pretrained(
-                self.model_name, cache_dir=self.cache_dir
+                self.model_name, cache_dir=self.cache_dir, use_fast=True
             )
             # Load model (encoder + decoder)
             self.model = VisionEncoderDecoderModel.from_pretrained(

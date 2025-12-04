@@ -1,7 +1,6 @@
 """Entrypoint script for NER-OCR container."""
 
 import argparse
-import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -30,20 +29,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="NER-OCR container entrypoint")
 
     parser.add_argument(
-        "--paddle-models-dir",
-        default=os.environ.get("PADDLE_MODELS_DIR", ""),
-        help="Dir with PaddleOCR models (copied to /root/.paddleocr/whl)",
+        "--mode",
+        choices=["pipeline-ocr", "pipeline-entity-extraction"],
+        default="pipeline-ocr",
+        help="Which pipeline to run",
     )
-    parser.add_argument(
-        "--paddlex-models-dir",
-        default=os.environ.get("PADDLEX_MODELS_DIR", ""),
-        help="Dir with PaddleX models (copied to /root/.paddlex/official_models)",
-    )
-    parser.add_argument(
-        "--hf-cache-dir",
-        default=os.environ.get("HF_CACHE_DIR", ""),
-        help="Dir with HF hub cache (copied to /root/.cache/huggingface/hub)",
-    )
+
     parser.add_argument(
         "-i",
         "--input",
@@ -57,6 +48,12 @@ def parse_args() -> argparse.Namespace:
         help="Output directory for pipeline",
     )
 
+    parser.add_argument(
+        "--config",
+        default="config.yaml",
+        help="Path to configuration YAML file",
+    )
+
     return parser.parse_args()
 
 
@@ -64,27 +61,24 @@ def main() -> None:
     """Run the main entrypoint function."""
     args = parse_args()
 
-    if args.paddle_models_dir:
-        copy_tree(Path(args.paddle_models_dir), PADDLE_OCR_DEST)
-
-    if args.paddlex_models_dir:
-        copy_tree(Path(args.paddlex_models_dir), PADDLEX_DEST)
-
-    if args.hf_cache_dir:
-        copy_tree(Path(args.hf_cache_dir), HF_HUB_DEST)
-
-    os.environ["PADDLEOCR_HOME"] = str(PADDLE_OCR_DEST.parent)
-    os.environ["PADDLEX_HOME"] = str(PADDLEX_DEST.parent)
-    os.environ["HF_HOME"] = str(HF_HUB_DEST.parent)
+    if args.mode == "pipeline-ocr":
+        module = "src.pipeline_ocr"
+    elif args.mode == "pipeline-entity-extraction":
+        module = "src.pipeline_entity_extraction"
+    else:
+        error_msg = f"Unknown mode: {args.mode}"
+        raise ValueError(error_msg)
 
     cmd = [
-        "python",
+        "python3",
         "-m",
-        "src.pipeline",
+        module,
         "-i",
         args.input,
         "-o",
         args.output,
+        "--config",
+        args.config,
     ]
     logger.info(f"Running pipeline: {' '.join(cmd)}")
     subprocess.run(cmd, check=True)  # noqa: S603

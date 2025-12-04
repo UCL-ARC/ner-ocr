@@ -7,6 +7,7 @@ from pathlib import Path
 from time import time
 
 import numpy as np
+import yaml
 from loguru import logger
 
 from .bounding_box import PaddleOCRWrapper
@@ -42,6 +43,12 @@ def parse_arguments() -> argparse.Namespace:
         help="Output directory for saving results",
     )
 
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config.yaml",
+        help="Path to configuration YAML file",
+    )
     return parser.parse_args()
 
 
@@ -140,8 +147,7 @@ def pipeline(
     file_path: str | Path,
     ocr: PaddleOCRWrapper,
     model: TrOCRWrapper,
-    rpa: RPAProcessor,
-    query: SemanticQuery | PositionalQuery,
+    queries: list[dict],
 ) -> list[SearchResult]:
     """Pipeline to process a document and extract information based on a query."""
     start_time = time()
@@ -155,19 +161,49 @@ def pipeline(
 
     # Step 2: Search for relevant information
     searched_results = []
-    for page in ocr_results:
-        searched_page = rpa.search(page, query)
-        searched_results.append(searched_page)
-
-    # Step 3: Enhance OCR results using Transformer OCR
-    for searched_page in searched_results:
-        for item in searched_page.page_result.data:
-            transformer_output = model.predict(item.bbox_image)
-            logger.info(
-                f"Original Text: '{item.text}' | Transformer Text: '{transformer_output.transformer_text}'"
+    for query in queries:
+        query_obj: SemanticQuery | PositionalQuery
+        logger.info(f"Processing query: {query['task']}")
+        if query["query_type"] == "semantic":
+            rpa = RPAProcessor(
+                search_type="semantic",
+                search_kwargs=query.get("search_kwargs", {}),
+                verbose=True,
             )
-            item.transformer_text = transformer_output.transformer_text
-            item.transformer_score = transformer_output.score
+            query_obj = SemanticQuery(
+                text=query["query_kwargs"]["text"],
+                threshold=query["query_kwargs"].get("threshold", 0.8),
+                search_type=query["query_kwargs"].get("search_type", "fuzzy"),
+                search_padding=query["query_kwargs"].get("search_padding", 50.0),
+            )
+        elif query["query_type"] == "positional":
+            rpa = RPAProcessor(
+                search_type="positional",
+                search_kwargs=query.get("search_kwargs", {}),
+                verbose=True,
+            )
+            query_obj = PositionalQuery(
+                x=query["query_kwargs"]["x"],
+                y=query["query_kwargs"]["y"],
+                search_radius=query["query_kwargs"].get("search_radius", 100),
+            )
+        else:
+            logger.error(f"Unknown query type: {query['query_type']}")
+            continue
+
+        for page in ocr_results:
+            searched_page = rpa.search(page, query_obj, task=query.get("task"))
+            searched_results.append(searched_page)
+
+        # Step 3: Enhance OCR results using Transformer OCR
+        for searched_page in searched_results:
+            for item in searched_page.page_result.data:
+                transformer_output = model.predict(item.bbox_image)
+                logger.info(
+                    f"Original Text: '{item.text}' | Transformer Text: '{transformer_output.transformer_text}'"
+                )
+                item.transformer_text = transformer_output.transformer_text
+                item.transformer_score = transformer_output.score
 
     end_time = time()
     elapsed_time = end_time - start_time
@@ -179,31 +215,21 @@ if __name__ == "__main__":
     # Init pipeline components
     args = parse_arguments()
 
+    config_path = Path(args.config)
+    config = yaml.safe_load(config_path.read_text())
+    logger.info(f"Loaded config: {config}")
+
     # Create output directory
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Output directory: {output_dir}")
 
-    ocr = PaddleOCRWrapper(
-        max_side_limit=1500,
-        ocr_timeout=400,
-        use_doc_orientation_classify=False,
-        use_doc_unwarping=False,
-        use_textline_orientation=False,
-        return_word_box=True,
-        device="cpu",  # Use CPU for Mac compatibility
-    )
+    ocr = PaddleOCRWrapper(**config["ocr"])
 
     model = TrOCRWrapper(
-        model=TrOCRModels.LARGE_HANDWRITTEN,
-        device="mps",  # Use mps for faster inference
-        cache_dir="../models",
+        model=TrOCRModels[config["transformer_ocr"]["model"]],
+        device=config["transformer_ocr"].get("device", None),
     )
-
-    # rpa = RPAProcessor(search_type="semantic", search_kwargs={}, verbose=True)
-    # query = SemanticQuery(text="NCDSID", threshold=0.9, search_type="fuzzy", search_padding=50.0)
-    rpa = RPAProcessor(search_type="positional", search_kwargs={}, verbose=True)
-    query = PositionalQuery(x=300, y=300, search_radius=150)
 
     # Get input files
     input_path = Path(args.input)
@@ -222,7 +248,7 @@ if __name__ == "__main__":
 
     for file_path in all_files:
         try:
-            results = pipeline(file_path, ocr, model, rpa, query)
+            results = pipeline(file_path, ocr, model, config["queries"])
             if results:
                 logger.success(f"Successfully processed {file_path}")
                 # save results as json

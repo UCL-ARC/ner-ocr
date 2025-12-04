@@ -33,4 +33,4 @@ repos:
     hooks:
       - id: mypy
         args: [--config-file=pyproject.toml, --ignore-missing-imports]
-        additional_dependencies: [pytest, pydantic, types-cachetools]
+        additional_dependencies: [pytest, pydantic, types-cachetools, types-PyYAML]

@@ -58,6 +58,7 @@ class SearchResult:
 
     page_result: PageResult
     search_type: str
+    search_task: str | None = None
 
 
 @dataclass

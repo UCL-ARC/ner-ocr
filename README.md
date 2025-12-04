@@ -314,6 +314,7 @@ python entrypoint.py \
 
 No rebuild is required when models change; you just update the mounted models directory.
 
+Need to comment out paddlepaddle and torch in the requirements so that we manually install the gpu enabled versions in the docker file
 ---
 
 ## 6. Notes
@@ -324,3 +325,8 @@ No rebuild is required when models change; you just update the mounted models di
   - `/root/.paddlex`
   - `/root/.cache/huggingface`
   if you prefer, as long as the directory structures match what the libraries expect.
+
+
+docker build --platform linux/amd64 -t ner-ocr:amd64 .   
+docker save ner-ocr:amd64 | gzip > ner-ocr-amd64.tar.gz
+gzip -dc ner-ocr-amd64.tar.gz | docker load

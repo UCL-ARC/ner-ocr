@@ -311,6 +311,7 @@ class RPAProcessor(BaseRPAProcessor):
         self,
         page: PageResult,
         query: PositionalQuery | SemanticQuery,
+        task: str | None = None,
     ) -> SearchResult:
         """
         Search for queries in the provided OCR results.
@@ -344,6 +345,7 @@ class RPAProcessor(BaseRPAProcessor):
         search_result = SearchResult(
             page_result=result_page,
             search_type=self.search_type,
+            search_task=task,
         )
         if self.verbose:
             self._debug_search_results(page, query, results)

@@ -1,0 +1,32 @@
+ocr:
+  max_side_limit: 1500
+  ocr_timeout: 400
+  use_doc_orientation_classify: false
+  use_doc_unwarping: false
+  use_textline_orientation: false
+  return_word_box: true
+  device: cpu
+
+transformer_ocr:
+  model: "LARGE_HANDWRITTEN"
+  device: cpu
+
+queries:
+  - task: "Extract NCDSID number"
+    query_type: "semantic"
+    query_kwargs:
+      text: "NCDSID"
+      threshold: 0.9
+      search_type: "fuzzy"
+      search_padding: 50.0
+  - task: "Extract Address"
+    query_type: "positional"
+    query_kwargs:
+      x: 300
+      y: 300
+      search_radius: 150
+
+entity_extraction:
+  model: "QWEN3_1_7B"
+  device: "cpu"
+  

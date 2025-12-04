@@ -1,4 +1,14 @@
+# ---------------------------------------------------------------------
+# DEPENDENCY GROUPS
+# ---------------------------------------------------------------------
+
 [dependency-groups]
+# note in the docker we install these manually, for local you will need them
+base = [
+    "accelerate>=1.12.0",
+    "paddlepaddle>=3.2.2",
+    "torch>=2.9.1",
+]
 dev = [
     "mypy>=1.17.1",
     "pre-commit>=4.3.0",
@@ -11,7 +21,7 @@ dev = [
 
 [project]
 authors = [
-    "Mack Nixon <mack.nixon@ucl.ac.uk>",
+    {email = "mack.nixon@ucl.ac.uk", name = "Mack Nixon"},
 ]
 dependencies = [
     "fitz>=0.0.1.dev2",
@@ -20,16 +30,21 @@ dependencies = [
     "langchain-core>=1.0.5",
     "levenshtein>=0.27.3",
     "loguru>=0.7.3",
+    "matplotlib>=3.10.7",
+    "opencv-python>=4.12.0.88",
+    "paddleocr>=3.3.1",
     "pdf2image>=1.17.0",
+    "pyaml>=25.7.0",
     "pydantic>=2.12.3",
     "pypdfium2>=5.0.0",
-    "pyyaml>=6.0.3",
+    "setuptools>=80.9.0",
     "transformers>=4.57.1",
+    "types-pyyaml>=6.0.12.20250915",
 ]
 description = "Tool for extracting ner data from hand written forms using ocr/llms"
 name = "ner-ocr"
 readme = "README.md"
-requires-python = ">=3.13.5"
+requires-python = ">=3.13"
 version = "0.1.0"
 
 [[tool.mypy.overrides]]
@@ -45,7 +60,7 @@ testpaths = ["tests"]
 extend-exclude = ["app/migrations/versions/*.py", "docs/*.py"]
 fix = true
 force-exclude = true
-target-version = "py312"
+target-version = "py313"
 lint.ignore = [
     "ANN003", # kwargs type annotation required
     "ARG002", # kwargs unused

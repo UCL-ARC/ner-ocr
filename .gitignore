@@ -184,3 +184,6 @@ misc/
 models/*
 data/*
 *.DS_Store
+
+ner-ocr-amd64.tar
+

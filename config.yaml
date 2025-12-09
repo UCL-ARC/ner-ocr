@@ -12,21 +12,17 @@ transformer_ocr:
   device: cpu
 
 queries:
-  - task: "Extract NCDSID number"
+  - task: "Extract address"
     query_type: "semantic"
     query_kwargs:
-      text: "NCDSID"
+      text: "address"
       threshold: 0.9
       search_type: "fuzzy"
       search_padding: 50.0
-  - task: "Extract Address"
-    query_type: "positional"
-    query_kwargs:
-      x: 300
-      y: 300
-      search_radius: 150
 
 entity_extraction:
   model: "QWEN3_1_7B"
   device: "cpu"
+  entities:
+    - AddressEntityList
   

@@ -17,7 +17,7 @@ from .exceptions import TransformerError
 class QwenModels(Enum):
     """Available Qwen models with their Hugging Face identifiers."""
 
-    # QWEN3_8B = "Qwen/Qwen3-8B"
+    QWEN3_8B = "Qwen/Qwen3-8B"
     QWEN3_4B_INSTRUCT_2507 = "Qwen/Qwen3-4B-Instruct-2507"
     QWEN3_1_7B = "Qwen/Qwen3-1.7B"
 
@@ -29,7 +29,9 @@ class QwenEntityExtractor(EntityExtractor):
         self,
         model: QwenModels = QwenModels.QWEN3_1_7B,
         cache_dir: str | None = None,
-        device: int | None = None,
+        device: str | None = None,
+        *,
+        local: bool = False,
     ) -> None:
         """
         Initialise the Qwen model and tokenizer.
@@ -49,17 +51,22 @@ class QwenEntityExtractor(EntityExtractor):
         self.model_name = model.value
         self.cache_dir = cache_dir
         self._is_loaded = False
+        self.device = device
+        self.local_files_only = local
 
         try:
             logger.info(f"loading model: {self.model_name}")
             self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_name, cache_dir=self.cache_dir
+                self.model_name,
+                cache_dir=self.cache_dir,
+                local_files_only=self.local_files_only,
             )
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.model_name,
                 cache_dir=self.cache_dir,
-                device_map="auto",
-                torch_dtype="auto",
+                device_map=self.device or "auto",
+                dtype="auto",
+                local_files_only=self.local_files_only,
             )  # Note we have device map as auto here
             self._is_loaded = True
         except Exception as e:
@@ -79,10 +86,14 @@ class QwenEntityExtractor(EntityExtractor):
         if output.endswith(eos_string):
             output = output[: -len(eos_string)]
 
+        if parser is None:
+            return {"content": output.strip()}
+
         try:
-            output = parser.parse(output) if parser else output.strip()
+            output = parser.parse(output)
         except Exception as e:  # noqa: BLE001
             logger.error(f"Error parsing output: {e}")
+        output = parser.pydantic_object()  # Return empty model on parse failure
 
         return {"content": output}
 
@@ -97,7 +108,7 @@ class QwenEntityExtractor(EntityExtractor):
             return_dict=True,
         ).to(self.model.device)
         outputs = self.model.generate(
-            **inputs, max_new_tokens=1000
+            **inputs, max_new_tokens=10000
         )  # TO DO: add control for this
         return self.tokenizer.decode(outputs[0][inputs["input_ids"].shape[-1] :])
 
@@ -115,7 +126,7 @@ class QwenEntityExtractor(EntityExtractor):
 
         base_prompt = kwargs.get(
             "system_prompt",
-            "Extract the following entities from the text and return them in the specified format:",
+            "Extract the following entities (make sure you extract ALL entities) from the text and return them in the specified format:",
         )
         system_prompt = f"{base_prompt}\n{format_instructions}"
         messages = [
@@ -156,10 +167,18 @@ class QwenEntityExtractor(EntityExtractor):
             raise TransformerError(error_msg) from e
 
     def __del__(self) -> None:
-        """Cleanup when object is destroyed."""
-        if self._is_loaded:
-            logger.info("Object being destroyed - cleaning up model resources...")
-            self.offload_model()
+        """Best-effort cleanup when object is destroyed."""
+        try:
+            if getattr(self, "_is_loaded", False):
+                logger.info(
+                    "Object being destroyed - attempting to clean up model resources..."
+                )
+                # Best-effort; ignore any errors
+                self.offload_model()
+        except Exception as e:  # noqa: BLE001
+            # Never let exceptions escape __del__
+            error_msg = f"Error during cleanup in __del__: {e}"
+            logger.error(error_msg)
 
 
 if __name__ == "__main__":

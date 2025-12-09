@@ -186,4 +186,4 @@ data/*
 *.DS_Store
 
 ner-ocr-amd64.tar
-
+*.tar.gz

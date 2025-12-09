@@ -8,10 +8,12 @@ import numpy as np
 from loguru import logger
 from paddleocr import PaddleOCR
 
-from .custom_types import BaseOCRProcessor, OCRResult, PageResult, SupportedExtensions
 from .exceptions import ImageProcessingError, OCRError
 from .image_processing import ImageProcessor
 from .pdf_processing import PDFProcessor
+from .types.base import BaseOCRProcessor
+from .types.data import OCRResult, PageResult
+from .types.enums import SupportedExtensions
 from .utils import timeout_context
 
 

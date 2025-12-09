@@ -11,9 +11,9 @@ import yaml
 from loguru import logger
 
 from .bounding_box import PaddleOCRWrapper
-from .custom_types import PositionalQuery, SearchResult, SemanticQuery
 from .rpa import RPAProcessor
 from .transformer_ocr import TrOCRModels, TrOCRWrapper
+from .types.data import PositionalQuery, SearchResult, SemanticQuery
 
 
 def parse_arguments() -> argparse.Namespace:

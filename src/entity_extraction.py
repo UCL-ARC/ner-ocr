@@ -9,9 +9,10 @@ from langchain_core.output_parsers import PydanticOutputParser
 from loguru import logger
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from .custom_types import EntityExtractor, T
 from .entities import AddressEntity
 from .exceptions import TransformerError
+from .types.base import EntityExtractor
+from .types.data import T
 
 
 class QwenModels(Enum):

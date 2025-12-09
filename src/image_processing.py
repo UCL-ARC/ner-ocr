@@ -6,8 +6,8 @@ import cv2
 import numpy as np
 from loguru import logger
 
-from .custom_types import SupportedExtensions
 from .exceptions import ImageProcessingError
+from .types.enums import SupportedExtensions
 
 
 class ImageProcessor:

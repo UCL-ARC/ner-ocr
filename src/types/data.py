@@ -1,24 +1,12 @@
-"""Type definitions and data structures for OCR processing."""
+"""Data classes for structured OCR and entity extraction results."""
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum
-from pathlib import Path
 from typing import Generic, TypeVar
 
 import numpy as np
 from pydantic import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
-
-
-class SupportedExtensions(Enum):
-    """Supported file extensions for OCR processing."""
-
-    PDF = ".pdf"
-    JPEG = ".jpeg"
-    JPG = ".jpg"
-    PNG = ".png"
 
 
 @dataclass
@@ -86,41 +74,3 @@ class SemanticQuery:
     threshold: float = 0.75  # Similarity threshold
     search_padding: float = 50.0  # Pixel radius
     search_type: str = "fuzzy"  # Type of semantic search
-
-
-class BaseOCRProcessor(ABC):
-    """Abstract base class for OCR processors."""
-
-    @abstractmethod
-    def extract(self, file_path: str | Path) -> list[PageResult]:
-        """Extract OCR results from a file."""
-
-
-class BaseTransformerOCR(ABC):
-    """Abstract base class for Transformer-based OCR models."""
-
-    @abstractmethod
-    def predict(self, image: np.ndarray) -> TransformerResult:
-        """Perform OCR on the input image and return recognized text."""
-
-
-class BaseRPAProcessor(ABC):
-    """Abstract base class for RPA processors."""
-
-    @abstractmethod
-    def search(
-        self,
-        ocr_results: PageResult,
-        query: PositionalQuery | SemanticQuery,
-    ) -> SearchResult:
-        """Search OCR results based on provided queries."""
-
-
-class EntityExtractor(ABC):
-    """Abstract base class for LLM-based entity extraction."""
-
-    @abstractmethod
-    def extract_entities(
-        self, text: str, entity_model: type[T], kwargs: dict
-    ) -> dict[str, T]:
-        """Extract entities from the provided text."""

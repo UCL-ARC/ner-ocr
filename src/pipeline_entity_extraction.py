@@ -7,9 +7,9 @@ from pathlib import Path
 import yaml
 from loguru import logger
 
-from .custom_types import EntityExtractionResult
 from .entities import AddressEntityList
 from .entity_extraction import QwenEntityExtractor, QwenModels
+from .types.data import EntityExtractionResult
 
 ENTITY_REGISTRY = {
     "AddressEntityList": AddressEntityList,

@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import TypeVar
+from typing import Generic, TypeVar
 
 import numpy as np
 from pydantic import BaseModel
@@ -13,7 +13,6 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class SupportedExtensions(Enum):
-    # TO DO: check what this does
     """Supported file extensions for OCR processing."""
 
     PDF = ".pdf"
@@ -59,6 +58,15 @@ class SearchResult:
     page_result: PageResult
     search_type: str
     search_task: str | None = None
+
+
+@dataclass
+class EntityExtractionResult(Generic[T]):
+    """Structured result for entity extraction."""
+
+    page: int
+    page_text: str
+    entities: dict[str, T]
 
 
 @dataclass

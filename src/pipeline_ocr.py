@@ -39,8 +39,8 @@ def parse_arguments() -> argparse.Namespace:
         "-o",
         "--output",
         type=str,
-        default="data/output",
-        help="Output directory for saving results",
+        default="data/intermediate",
+        help="Output directory for saving OCR results",
     )
 
     parser.add_argument(
@@ -92,55 +92,6 @@ def parse_result(result: SearchResult) -> dict:
 
     # for now we just do this later more may be added hence the unnecessary func in func
     return _clean(result)
-
-
-def to_markdown(data: list[dict], line_threshold: int = 10) -> None:
-    """
-    Convert OCR JSON with bounding boxes into Markdown.
-
-    Args:
-        data: list of page results with bounding boxes and text
-        line_threshold: max difference in y_min to consider same line
-
-    """
-    markdown_pages = []
-
-    for page_entry in data:
-        page_result = page_entry["page_result"]
-        page_number = page_result["page"]
-        items = page_result["data"]
-
-        # Sort items top-to-bottom
-        items_sorted = sorted(items, key=lambda x: x["box"][1])  # sort by y_min
-
-        lines = []
-        current_line = []
-        last_y = None
-
-        for item in items_sorted:
-            y_min = item["box"][1]
-            x_min = item["box"][0]
-            text = item.get("transformer_text", item["text"])
-
-            if last_y is None or abs(y_min - last_y) <= line_threshold:
-                current_line.append((x_min, text))
-            else:
-                # finish current line
-                current_line.sort(key=lambda x: x[0])
-                lines.append("   ".join([t[1] for t in current_line]))
-                current_line = [(x_min, text)]
-
-            last_y = y_min
-
-        # Add last line
-        if current_line:
-            current_line.sort(key=lambda x: x[0])
-            lines.append("   ".join([t[1] for t in current_line]))
-
-        markdown_page = "\n".join(lines)
-        markdown_pages.append(f"### Page {page_number}\n\n{markdown_page}")
-
-    logger.info("\n\n".join(markdown_pages))
 
 
 def pipeline(
@@ -253,9 +204,8 @@ if __name__ == "__main__":
                 logger.success(f"Successfully processed {file_path}")
                 # save results as json
                 parsed_results = [parse_result(res) for res in results]
-                to_markdown(parsed_results, line_threshold=10)
 
-                json_output_path = output_dir / f"{file_path.stem}_results.json"
+                json_output_path = output_dir / f"{file_path.stem}_ocr_results.json"
                 with Path.open(json_output_path, "w") as f:
                     json.dump(parsed_results, f, indent=4)
 

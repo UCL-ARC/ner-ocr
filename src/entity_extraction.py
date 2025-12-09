@@ -37,7 +37,7 @@ class QwenEntityExtractor(EntityExtractor):
         Initialise the Qwen model and tokenizer.
 
         Args:
-            moI mdel: Name of the pre-trained Qwen model.
+            model: Name of the pre-trained Qwen model.
             cache_dir: Optional directory path for caching model files.
 
         """

@@ -9,7 +9,6 @@ from loguru import logger
 
 from .entities import AddressEntityList
 from .entity_extraction import QwenEntityExtractor, QwenModels
-from .types.data import EntityExtractionResult
 
 ENTITY_REGISTRY = {
     "AddressEntityList": AddressEntityList,
@@ -142,27 +141,36 @@ def pipeline(
     file_path: Path,
     extractor: QwenEntityExtractor,
     entities: list[str],
-) -> list[EntityExtractionResult]:
+) -> list[dict]:
     """Run main pipeline function for extracting single entities from a file."""
     # read in json file path
     with Path.open(file_path, "r") as f:
         parsed_result = json.load(f)
 
     page_results = []
+    # TO DO HERE THIS NEEDS TO BE FIXED!!!!!! COMPLETELY BROKEN NOW
     for page in parsed_result:
         markdown_page = to_markdown(page)
+
+        extracted_entities = {}
         for entity in entities:
             result = extractor.extract_entities(
                 markdown_page, entity_model=ENTITY_REGISTRY[entity]
             )
+            if result["content"]:
+                extracted_entities[entity] = result[
+                    "content"
+                ].model_dump()  # note this requires it to be pydantic object
+            else:
+                extracted_entities[entity] = {}
+
         logger.info(f"\n\n### Page {page['page_result']['page']}\n\n{markdown_page}")
-        logger.info(f"Extracted Entities: {result}")
-        result["content"].model_dump()
-        page_result = EntityExtractionResult(
-            page=page["page_result"]["page"],
-            page_text=markdown_page,
-            entities=result["content"].model_dump(),
-        )
+        logger.info(f"Extracted Entities: {extracted_entities}")
+        page_result = {
+            "page": page["page_result"]["page"],
+            "page_text": markdown_page,
+            "entities": extracted_entities,
+        }
         page_results.append(page_result)
 
     return page_results

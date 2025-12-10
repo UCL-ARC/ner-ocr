@@ -1,7 +1,7 @@
 """Data classes for structured OCR and entity extraction results."""
 
 from dataclasses import dataclass
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 import numpy as np
 from pydantic import BaseModel
@@ -46,15 +46,6 @@ class SearchResult:
     page_result: PageResult
     search_type: str
     search_task: str | None = None
-
-
-@dataclass
-class EntityExtractionResult(Generic[T]):
-    """Structured result for entity extraction."""
-
-    page: int
-    page_text: str
-    entities: dict[str, T]
 
 
 @dataclass

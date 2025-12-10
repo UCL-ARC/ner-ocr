@@ -94,7 +94,7 @@ class QwenEntityExtractor(EntityExtractor):
             output = parser.parse(output)
         except Exception as e:  # noqa: BLE001
             logger.error(f"Error parsing output: {e}")
-        output = parser.pydantic_object()  # Return empty model on parse failure
+            output = parser.pydantic_object()  # Return empty model on parse failure
 
         return {"content": output}
 

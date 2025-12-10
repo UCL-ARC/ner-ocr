@@ -7,9 +7,10 @@ from enum import Enum
 import torch
 from langchain_core.output_parsers import PydanticOutputParser
 from loguru import logger
+from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from .custom_types import EntityExtractor, T
+from .custom_types import EntityExtractor
 from .entities import AddressEntity
 from .exceptions import TransformerError
 
@@ -93,7 +94,7 @@ class QwenEntityExtractor(EntityExtractor):
             output = parser.parse(output)
         except Exception as e:  # noqa: BLE001
             logger.error(f"Error parsing output: {e}")
-        output = parser.pydantic_object()  # Return empty model on parse failure
+            output = parser.pydantic_object()  # Return empty model on parse failure
 
         return {"content": output}
 
@@ -113,8 +114,8 @@ class QwenEntityExtractor(EntityExtractor):
         return self.tokenizer.decode(outputs[0][inputs["input_ids"].shape[-1] :])
 
     def extract_entities(
-        self, text: str, entity_model: type[T], kwargs: dict | None = None
-    ) -> dict[str, T]:
+        self, text: str, entity_model: type[BaseModel], kwargs: dict | None = None
+    ) -> dict[str, BaseModel]:
         """Extract entities from the provided text."""
         logger.info("extracting entities...")
         if kwargs is None:

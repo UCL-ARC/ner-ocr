@@ -9,8 +9,8 @@ from loguru import logger
 from PIL import Image
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
+from .custom_types import BaseTransformerOCR, TransformerResult
 from .exceptions import TransformerError
-from .types import BaseTransformerOCR, TransformerResult
 
 
 class TrOCRModels(Enum):

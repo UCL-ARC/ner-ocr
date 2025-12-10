@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from loguru import logger
 from rapidfuzz import fuzz
 
-from .types import (
+from .custom_types import (
     BaseRPAProcessor,
     OCRResult,
     PageResult,

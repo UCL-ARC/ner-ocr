@@ -10,9 +10,9 @@ from loguru import logger
 from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+from .custom_types import EntityExtractor
 from .entities import AddressEntity
 from .exceptions import TransformerError
-from .types import EntityExtractor
 
 
 class QwenModels(Enum):

@@ -20,6 +20,7 @@ class EntityExtractionPipeline(BasePipeline):
     def __init__(self, config: AppConfig) -> None:
         """Initialise entity extraction pipeline with config."""
         super().__init__(config)
+        # TO DO: this is now limited to Qwen - make more general
         self.extractor = QwenEntityExtractor(
             model=QwenModels[config.entity_extraction.model],
             device=config.entity_extraction.device,
@@ -52,6 +53,7 @@ class EntityExtractionPipeline(BasePipeline):
                 if hasattr(content, "model_dump"):
                     extracted_entities[entity] = content.model_dump()
                 else:
+                    # TO DO: handle other types? maybe we just raise an error as we always expect pydantic models
                     extracted_entities[entity] = {}
 
             logger.info(f"Page {page['page_result']['page']}: {extracted_entities}")
@@ -116,6 +118,7 @@ class EntityExtractionPipeline(BasePipeline):
         markdown_lines: list[str] = []
         last_line_y: float | None = None
 
+        # TO DO: this shouldn't be an arbitrary gap of three lines, will need to more accurately produce the markdown
         for line_y, line_tokens in lines:
             if last_line_y is not None and (line_y - last_line_y) > gap_threshold:
                 markdown_lines.extend(["", "", ""])

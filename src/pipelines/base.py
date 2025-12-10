@@ -16,6 +16,7 @@ class BasePipeline(ABC):
         """Initialise pipeline with config."""
         self.config = config
 
+    # TO DO: I think this process file method will not always be typed this way
     @abstractmethod
     def process_file(self, file_path: Path) -> list[Any]:
         """Process a single file and return results."""
@@ -26,6 +27,7 @@ class BasePipeline(ABC):
         """Return the suffix for output files (e.g., '_ocr_results')."""
         ...
 
+    # TO DO: this assumes output is always json
     def run(self, input_path: Path, output_dir: Path) -> None:
         """Run the pipeline on input path(s)."""
         from src.utils import (

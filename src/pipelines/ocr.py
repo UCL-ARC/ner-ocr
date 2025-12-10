@@ -20,6 +20,7 @@ class OCRPipeline(BasePipeline):
     def __init__(self, config: AppConfig) -> None:
         """Initialise OCR pipeline with config."""
         super().__init__(config)
+        # TO DO: this is limited to PaddleOCR + TrOCR for now
         self.ocr = PaddleOCRWrapper(
             max_side_limit=config.ocr.max_side_limit,
             ocr_timeout=config.ocr.ocr_timeout,

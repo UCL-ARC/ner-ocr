@@ -7,7 +7,7 @@ import numpy as np
 from loguru import logger
 
 from .exceptions import ImageProcessingError
-from .types.enums import SupportedExtensions
+from .types import SupportedExtensions
 
 
 class ImageProcessor:

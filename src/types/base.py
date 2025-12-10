@@ -4,13 +4,13 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 
 import numpy as np
+from pydantic import BaseModel
 
 from .data import (
     PageResult,
     PositionalQuery,
     SearchResult,
     SemanticQuery,
-    T,
     TransformerResult,
 )
 
@@ -48,6 +48,6 @@ class EntityExtractor(ABC):
 
     @abstractmethod
     def extract_entities(
-        self, text: str, entity_model: type[T], kwargs: dict
-    ) -> dict[str, T]:
+        self, text: str, entity_model: type[BaseModel], kwargs: dict
+    ) -> dict:
         """Extract entities from the provided text."""

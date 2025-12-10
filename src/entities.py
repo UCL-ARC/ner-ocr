@@ -26,3 +26,9 @@ class AddressEntityList(BaseModel):
     addresses: list[AddressEntity] = Field(
         ..., description="List of extracted address entities"
     )
+
+
+ENTITY_REGISTRY: dict[str, type[BaseModel]] = {
+    "AddressEntity": AddressEntity,
+    "AddressEntityList": AddressEntityList,
+}

@@ -7,14 +7,8 @@ from pathlib import Path
 import yaml
 from loguru import logger
 
-from .entities import AddressEntityList
+from .entities import ENTITY_REGISTRY
 from .entity_extraction import QwenEntityExtractor, QwenModels
-
-ENTITY_REGISTRY = {
-    "AddressEntityList": AddressEntityList,
-    # add more here as you define them
-    # "SomeOtherEntity": SomeOtherEntityModel,
-}
 
 
 def parse_arguments() -> argparse.Namespace:

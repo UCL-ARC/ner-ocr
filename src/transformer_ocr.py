@@ -10,8 +10,7 @@ from PIL import Image
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
 from .exceptions import TransformerError
-from .types.base import BaseTransformerOCR
-from .types.data import TransformerResult
+from .types import BaseTransformerOCR, TransformerResult
 
 
 class TrOCRModels(Enum):

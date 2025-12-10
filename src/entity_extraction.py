@@ -7,12 +7,12 @@ from enum import Enum
 import torch
 from langchain_core.output_parsers import PydanticOutputParser
 from loguru import logger
+from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from .entities import AddressEntity
 from .exceptions import TransformerError
-from .types.base import EntityExtractor
-from .types.data import T
+from .types import EntityExtractor
 
 
 class QwenModels(Enum):
@@ -114,8 +114,8 @@ class QwenEntityExtractor(EntityExtractor):
         return self.tokenizer.decode(outputs[0][inputs["input_ids"].shape[-1] :])
 
     def extract_entities(
-        self, text: str, entity_model: type[T], kwargs: dict | None = None
-    ) -> dict[str, T]:
+        self, text: str, entity_model: type[BaseModel], kwargs: dict | None = None
+    ) -> dict[str, BaseModel]:
         """Extract entities from the provided text."""
         logger.info("extracting entities...")
         if kwargs is None:

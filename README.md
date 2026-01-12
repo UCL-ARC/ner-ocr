@@ -37,296 +37,355 @@ Centre for Advanced Research Computing, University College London
 
 ### Prerequisites
 
-<!-- Any tools or versions of languages needed to run code. For example specific Python or Node versions. Minimum hardware requirements also go here. -->
+- Python 3.13+
+- [uv](https://docs.astral.sh/uv) for dependency management
+- Docker (for containerized deployment)
 
-`ner-ocr` requires Python 3.13&ndash;3.11.
-
-### Installation
-
-<!-- How to build or install the application. -->
-
-### Installing `uv`
-
-[uv](https://docs.astral.sh/uv) is used for Python dependency management and managing virtual environments. You can install uv either using pipx or the uv installer script:
+### Installing uv
 
 ```sh
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-### Installing Dependencies
+---
 
-Once uv is installed, install dependencies:
+## Running Environments
 
-```sh
-uv sync
-```
+This project supports three deployment modes. Choose based on your use case:
 
-### Activate your Python environment
+| Environment | Use Case | Hardware | Performance |
+|-------------|----------|----------|-------------|
+| **Local (Mac)** | Development & testing | Apple Silicon with MPS | Fast (GPU accelerated) |
+| **Docker Dev** | Local containerized testing | CPU only | Slower |
+| **Docker TRE** | Production deployment | NVIDIA GPU with CUDA | Fast (GPU accelerated) |
 
-```sh
+---
+
+## 1. Local Development (Mac with MPS)
+
+**Best for:** Day-to-day development with fast iteration. Uses Apple's Metal Performance Shaders (MPS) for GPU acceleration.
+
+### Setup
+
+```bash
+# Install all dependencies including PyTorch with MPS support
+uv sync --group base --group dev
+
+# Activate the virtual environment
 source .venv/bin/activate
-```
 
-### Installing pre-commit hooks
-
-Install `pre-commit` locally (in your activated `venv`) to aid code consistency (if you're looking to contribute).
-
-```sh
+# (Optional) Install pre-commit hooks for contributors
 pre-commit install
 ```
 
-# Docker Usage
-
-This document explains how to build and run the `ner-ocr` Docker image using **pre‑downloaded models** stored on your local filesystem (or in a TRE).
-
-The image:
-
-- Does **not** bake models in at build time.
-- Expects you to **mount** a models directory at runtime and tell it where to find:
-  - PaddleOCR models
-  - PaddleX models
-  - Hugging Face (HF) cache (for TrOCR and Qwen)
-
----
-
-## 1. Prerequisites
-
-- Docker installed (Docker Desktop on macOS is fine).
-- Python (optional, only needed to generate `requirements.txt` and download models the first time).
-
-Project structure (simplified):
-
-```text
-ner-ocr/
-  src/
-  scripts/
-    entrypoint.py
-  data/
-    input/    # your PDFs/images go here
-    output/   # pipeline writes results here
-  models/
-    paddle_models/    # PaddleOCR cache (optional but recommended)
-    paddlex_models/   # PaddleX models (optional but recommended)
-    hf_cache/         # Hugging Face hub cache (TrOCR + Qwen)
-  Dockerfile
-  requirements.txt
-```
-
-You can choose any host path for `models/`; using `./models` is just a convenient default.
-
----
-
-## 2. Preparing models (one‑time, on your host)
-
-You need to download all required models once on your host machine, then store them under `models/` so they can be mounted into the container.
-
-### 2.1. Download PaddleOCR / PaddleX models
-
-In your local Python environment (not inside Docker):
+### Running the Workbench UI
 
 ```bash
-cd /path/to/ner-ocr
-python - << 'PYCODE'
-from paddleocr import PaddleOCR
-
-# Match your runtime settings (lang, ocr_version, etc.)
-ocr = PaddleOCR(
-    use_angle_cls=True,
-    lang="en",
-    ocr_version="PP-OCRv5",
-)
-print("PaddleOCR models downloaded.")
-PYCODE
+uv run python -m scripts.run_ui
 ```
 
-This will populate:
+Then open http://localhost:7860 in your browser.
 
-- `~/.paddleocr/whl`
-- `~/.paddlex/official_models`
-
-Copy them into your project `models/` directory:
+### Running the Pipeline CLI
 
 ```bash
-mkdir -p models/paddle_models models/paddlex_models
-
-cp -R ~/.paddleocr/whl/. models/paddle_models/
-cp -R ~/.paddlex/official_models/. models/paddlex_models/
+uv run python scripts/entrypoint.py --mode ocr -i data/input -o data/output
 ```
 
-### 2.2. Download TrOCR and Qwen models (Hugging Face)
-
-In the same environment:
+### Verify MPS is Working
 
 ```bash
-python - << 'PYCODE'
-from transformers import (
-    TrOCRProcessor,
-    VisionEncoderDecoderModel,
-    AutoTokenizer,
-    AutoModelForCausalLM,
-)
-
-# TrOCR
-trocr_name = "microsoft/trocr-large-handwritten"
-TrOCRProcessor.from_pretrained(trocr_name)
-VisionEncoderDecoderModel.from_pretrained(trocr_name)
-
-# Qwen models used by entity_extraction
-qwen_models = [
-    "Qwen/Qwen3-4B-Instruct-2507",
-    # add/remove here as needed
-]
-
-for name in qwen_models:
-    AutoTokenizer.from_pretrained(name)
-    AutoModelForCausalLM.from_pretrained(name)
-
-print("TrOCR + Qwen models downloaded to HF cache.")
-PYCODE
-```
-
-This will populate `~/.cache/huggingface/hub`.
-
-Copy the HF cache into `models/hf_cache`:
-
-```bash
-mkdir -p models/hf_cache
-cp -R ~/.cache/huggingface/hub/. models/hf_cache/
-```
-
-Now your `models/` tree should look like:
-
-```text
-models/
-  paddle_models/
-    ... (paddle OCR files) ...
-  paddlex_models/
-    ... (PaddleX official_models) ...
-  hf_cache/
-    ... (HF hub repos: trocr, Qwen, etc.) ...
+uv run python -c "import torch; print(f'MPS available: {torch.backends.mps.is_available()}')"
 ```
 
 ---
 
-## 3. Build the Docker image
+## 2. Docker Dev (CPU-only, Cross-platform)
 
-From the project root:
+**Best for:** Testing the containerized application locally before TRE deployment. Works on Mac, Windows, and Linux.
+
+### Build
 
 ```bash
-cd /path/to/ner-ocr
+docker build -f Dockerfile.dev -t ner-ocr:dev .
+```
+
+### Run Workbench UI
+
+```bash
+docker run -p 7860:7860 \
+  -v "$PWD/data":/app/data \
+  -v "$PWD/models":/app/models \
+  -v "$PWD/config.yaml":/app/config.yaml \
+  ner-ocr:dev --mode workbench
+```
+
+Then open http://localhost:7860 in your browser.
+
+### Run Pipeline
+
+```bash
+docker run --rm \
+  -v "$PWD/data":/app/data \
+  -v "$PWD/models":/app/models \
+  ner-ocr:dev --mode ocr -i /app/data/input -o /app/data/output
+```
+
+> ⚠️ **Note:** CPU inference is slow, especially for entity extraction (~5-10 min per document). For faster development, use local Mac environment with MPS.
+
+---
+
+## 3. Docker TRE (GPU, Production)
+
+**Best for:** Production deployment in a Trusted Research Environment with NVIDIA GPUs.
+
+### Build
+
+```bash
 docker build -t ner-ocr:latest .
 ```
 
-This uses:
+### Build for TRE Export (x86_64)
 
-```dockerfile
-FROM python:3.12-slim
-
-WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY src/ ./src/
-COPY scripts/entrypoint.py ./entrypoint.py
-COPY data/ ./data/
-
-ENV PYTHONPATH=/app/src
-
-ENTRYPOINT ["python", "entrypoint.py"]
-```
-
-The image now contains only code + dependencies; **no models**.
-
----
-
-## 4. Running the container
-
-You must:
-
-- Mount your local `models/` directory.
-- Mount input/output data directories.
-- Pass the model directory paths to `entrypoint.py`.
-
-### 4.1. Local run example (macOS)
-
-Assuming:
-
-- Project root: `/Users/you/Projects/ner-ocr`
-- Models under `./models`
-- Input PDFs/images under `./data/input`
-- Output dir: `./data/output`
-
-Create input/output dirs if needed:
+If building on Apple Silicon for deployment to x86_64 TRE:
 
 ```bash
-mkdir -p data/input data/output
-# copy some test PDFs/images into data/input
-```
-
-Run:
-
-```bash
-docker run --rm -it \
-  -v "$PWD/models":/models \
-  -v "$PWD/data/input":/data/input \
-  -v "$PWD/data/output":/data/output \
-  ner-ocr:latest \
-  --paddle-models-dir /models/paddle_models \
-  --paddlex-models-dir /models/paddlex_models \
-  --hf-cache-dir /models/hf_cache \
-  -i /data/input \
-  -o /data/output
-```
-
-Explanation:
-
-- `-v "$PWD/models":/models` mounts your host `./models` folder to `/models` in the container.
-- `--paddle-models-dir /models/paddle_models` tells the entrypoint where PaddleOCR models are.
-- `--paddlex-models-dir /models/paddlex_models` does the same for PaddleX.
-- `--hf-cache-dir /models/hf_cache` points to the HF hub cache (TrOCR + Qwen).
-- `-i /data/input` and `-o /data/output` are pipeline input/output paths inside the container, mapped to your host `./data/input` and `./data/output`.
-
-The `scripts/entrypoint.py` script will:
-
-1. Optionally copy models into the expected runtime locations (e.g. `/root/.paddleocr/whl`, `/root/.paddlex/official_models`, `/root/.cache/huggingface/hub`), **or** just set env vars if you choose that approach.
-2. Set `PADDLEOCR_HOME`, `PADDLEX_HOME`, and `HF_HOME`.
-3. Run `python -m src.pipeline` with your `-i` and `-o`.
-
----
-
-## 5. Running in a TRE
-
-In a TRE you do the same thing conceptually:
-
-1. Ensure your models storage is available inside the container (for example, mounted at `/mnt/models`).
-2. Ensure input and output storage are mounted (`/mnt/input`, `/mnt/output`).
-3. Configure the container command like:
-
-```bash
-python entrypoint.py \
-  --paddle-models-dir /mnt/models/paddle_models \
-  --paddlex-models-dir /mnt/models/paddlex_models \
-  --hf-cache-dir /mnt/models/hf_cache \
-  -i /mnt/input \
-  -o /mnt/output
-```
-
-No rebuild is required when models change; you just update the mounted models directory.
-
-Need to comment out paddlepaddle and torch in the requirements so that we manually install the gpu enabled versions in the docker file
----
-
-## 6. Notes
-
-- If you run out of memory (SIGKILL / exit code 137), reduce model sizes (e.g. use `microsoft/trocr-base-handwritten` instead of the large model) or increase Docker memory (Docker Desktop → Settings → Resources).
-- You can also skip copying models at startup and directly mount them into the standard locations:
-  - `/root/.paddleocr`
-  - `/root/.paddlex`
-  - `/root/.cache/huggingface`
-  if you prefer, as long as the directory structures match what the libraries expect.
-
-
-docker build --platform linux/amd64 -t ner-ocr:amd64 .   
+docker build --platform linux/amd64 -t ner-ocr:amd64 .
 docker save ner-ocr:amd64 | gzip > ner-ocr-amd64.tar.gz
+```
+
+Load in TRE:
+
+```bash
 gzip -dc ner-ocr-amd64.tar.gz | docker load
+```
+
+### Run with GPU
+
+```bash
+docker run --gpus all -p 7860:7860 \
+  -v /mnt/data:/app/data \
+  -v /mnt/models:/app/models \
+  ner-ocr:latest --mode workbench
+```
+
+### Network-Isolated TRE Deployment
+
+The Docker image is configured for network-isolated environments:
+
+- **Gradio:** Analytics and update checks are disabled via `GRADIO_ANALYTICS_ENABLED=False` and `GRADIO_CHECK_UPDATE=False`
+- **Hugging Face:** Offline mode is enabled via `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1`
+
+These environment variables are set in the Dockerfile. Models must be pre-cached in the image or mounted from the host.
+
+To run with explicit offline settings (if not baked into image):
+
+```bash
+docker run --gpus all -p 7860:7860 \
+  -e GRADIO_ANALYTICS_ENABLED=False \
+  -e HF_HUB_OFFLINE=1 \
+  -e TRANSFORMERS_OFFLINE=1 \
+  -v /mnt/models:/app/models \
+  ner-ocr:latest --mode workbench
+```
+
+### Accessing the UI in TRE
+
+The UI binds to `0.0.0.0:7860` by default. To access it:
+
+1. Find the host IP: `hostname -I` or `ip addr show`
+2. Open in browser: `http://<host-ip>:7860`
+
+> ⚠️ **Note:** `localhost` may not work in some TRE setups. Use the actual IP address.
+
+---
+
+## Dependency Management
+
+This project uses `uv` with dependency groups to handle different environments cleanly.
+
+### File Structure
+
+| File | Purpose |
+|------|---------|
+| `pyproject.toml` | Single source of truth for all dependencies |
+| `requirements-docker.txt` | Docker deps (excludes torch/paddle) |
+| `requirements.txt` | Full deps (reference only) |
+
+### Dependency Groups
+
+```toml
+[dependency-groups]
+base = ["torch", "paddlepaddle", "accelerate", "torchvision"]  # ML frameworks
+dev = ["pytest", "ruff", "mypy", "pre-commit"]                  # Development tools
+```
+
+### Regenerating Requirements Files
+
+After modifying `pyproject.toml`:
+
+```bash
+# For Docker (excludes torch/paddle - installed separately in Dockerfile)
+uv export --no-group base --no-group dev -o requirements-docker.txt --no-hashes
+
+# Full export (for reference)
+uv export -o requirements.txt --no-hashes
+```
+
+### Why Separate Files?
+
+Docker images need specific versions of PyTorch and PaddlePaddle:
+- **TRE Docker:** CUDA-enabled versions (`torch==2.6.0+cu126`, `paddlepaddle-gpu==3.2.0`)
+- **Dev Docker:** CPU-only versions
+- **Local Mac:** Standard PyPI versions with MPS support
+
+By excluding the `base` group from Docker requirements, we can install the correct platform-specific versions in each Dockerfile.
+
+---
+
+## Model Setup
+
+The pipeline requires pre-downloaded models. Models are **not** baked into Docker images.
+
+### Download Models (One-time)
+
+```bash
+# Activate your local environment first
+source .venv/bin/activate
+
+# Download PaddleOCR models
+python -c "from paddleocr import PaddleOCR; PaddleOCR(use_angle_cls=True, lang='en', ocr_version='PP-OCRv5')"
+
+# Download TrOCR models
+python -c "
+from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+TrOCRProcessor.from_pretrained('microsoft/trocr-large-handwritten')
+VisionEncoderDecoderModel.from_pretrained('microsoft/trocr-large-handwritten')
+"
+
+# Download Qwen models (for entity extraction)
+python -c "
+from transformers import AutoTokenizer, AutoModelForCausalLM
+AutoTokenizer.from_pretrained('Qwen/Qwen3-1.7B')
+AutoModelForCausalLM.from_pretrained('Qwen/Qwen3-1.7B')
+"
+```
+
+### Copy to Project Models Directory
+
+```bash
+mkdir -p models/paddle_models models/paddlex_models models/hf_cache
+
+cp -R ~/.paddleocr/whl/. models/paddle_models/
+cp -R ~/.paddlex/official_models/. models/paddlex_models/
+cp -R ~/.cache/huggingface/hub/. models/hf_cache/
+```
+
+### Model Directory Structure
+
+```text
+models/
+  paddle_models/     # PaddleOCR detection/recognition
+  paddlex_models/    # PaddleX official models
+  hf_cache/          # Hugging Face cache (TrOCR, Qwen)
+```
+
+---
+
+## Quick Reference
+
+### Local Mac Development
+
+```bash
+uv sync --group base --group dev
+uv run python -m scripts.run_ui
+```
+
+### Docker Dev (Testing)
+
+```bash
+docker build -f Dockerfile.dev -t ner-ocr:dev .
+docker run -p 7860:7860 -v "$PWD/data":/app/data ner-ocr:dev --mode workbench
+```
+
+### Docker TRE (Production)
+
+```bash
+docker build -t ner-ocr:latest .
+docker run --gpus all -p 7860:7860 ner-ocr:latest --mode workbench
+```
+
+---
+
+## Troubleshooting
+
+### TRE: Connection Refused / Cannot Access UI
+
+- Ensure port mapping is set: `docker run -p 7860:7860 ...`
+- Use host IP instead of localhost: `http://<host-ip>:7860`
+- Check container is running: `docker ps`
+- Check logs for errors: `docker logs <container_id>`
+
+### TRE: Browser Hangs on "Connecting to..." External URLs
+
+If the browser shows it's trying to connect to external URLs (e.g., `cdnjs.cloudflare.com`), ensure offline mode is enabled:
+
+```bash
+docker run --gpus all -p 7860:7860 \
+  -e GRADIO_ANALYTICS_ENABLED=False \
+  -e HF_HUB_OFFLINE=1 \
+  ner-ocr:latest --mode workbench
+```
+
+### TRE: Slow Model Loading
+
+If models take a long time to load in a network-isolated TRE, Hugging Face may be timing out on network requests. Ensure `HF_HUB_OFFLINE=1` is set to skip network checks.
+
+### Out of Memory (Exit Code 137)
+
+- Increase Docker memory (Docker Desktop → Settings → Resources)
+- Use smaller models (e.g., `trocr-base-handwritten` instead of `large`)
+- Use `Qwen3-1.7B` instead of `Qwen3-8B`
+
+### Slow Entity Extraction
+
+- Entity extraction with Qwen models is CPU-intensive
+- **On Mac:** Run locally (not in Docker) to use MPS acceleration
+- **In TRE:** Ensure GPU is available and CUDA is working
+
+### Model Not Found Errors
+
+- Ensure models are downloaded and mounted correctly
+- Check `config.yaml` paths match your model locations
+- Set `local_files_only: false` in config if models need downloading
+
+---
+
+## Project Structure
+
+```text
+ner-ocr/
+  src/               # Source code
+  scripts/           # CLI entrypoints
+  data/
+    input/           # Input PDFs/images
+    output/          # Pipeline output
+  models/            # Pre-downloaded models (not in git)
+  Dockerfile         # Production (GPU/TRE)
+  Dockerfile.dev     # Development (CPU)
+  pyproject.toml     # Dependencies
+  config.yaml        # Runtime configuration
+```
+
+---
+
+## About
+
+### Project Team
+
+Mack Nixon ([mack.nixon@ucl.ac.uk](mailto:mack.nixon@ucl.ac.uk))
+
+### Research Software Engineering Contact
+
+Centre for Advanced Research Computing, University College London
+([arc.collaborations@ucl.ac.uk](mailto:arc.collaborations@ucl.ac.uk))

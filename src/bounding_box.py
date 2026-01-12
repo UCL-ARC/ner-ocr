@@ -12,7 +12,7 @@ from .custom_types import BaseOCRProcessor, OCRResult, PageResult, SupportedExte
 from .exceptions import ImageProcessingError, OCRError
 from .image_processing import ImageProcessor
 from .pdf_processing import PDFProcessor
-from .utils import timeout_context
+from .utils import run_with_timeout
 
 
 class BoundingBoxExtractor:
@@ -97,10 +97,33 @@ class PaddleOCRWrapper(BaseOCRProcessor):
             max_side_limit: Maximum allowed size for any side of processed images
             ocr_timeout: Timeout in seconds for OCR operations
             **paddle_kwargs: Additional arguments to pass to PaddleOCR
+                Note: 'device' parameter is handled for PaddleOCR compatibility
+                      - PaddleOCR 3.x+: uses 'device' directly ('cpu', 'gpu')
+                      - Older versions: converted to 'use_gpu' boolean
 
         """
+        # Normalize device parameter for PaddleOCR compatibility
+        if "device" in paddle_kwargs:
+            device = paddle_kwargs["device"].lower()
+            # Normalize 'cuda' to 'gpu' for PaddleOCR
+            if device == "cuda":
+                paddle_kwargs["device"] = "gpu"
+            logger.debug(f"Using device='{paddle_kwargs['device']}'")
+
         try:
             self.ocr = PaddleOCR(**paddle_kwargs)
+        except (TypeError, ValueError) as e:
+            # Fallback for older PaddleOCR versions that use use_gpu instead of device
+            if "device" in paddle_kwargs and "Unknown argument" in str(e):
+                device = paddle_kwargs.pop("device")
+                paddle_kwargs["use_gpu"] = device in ("gpu", "cuda")
+                logger.debug(
+                    f"Falling back to use_gpu={paddle_kwargs['use_gpu']} for older PaddleOCR"
+                )
+                self.ocr = PaddleOCR(**paddle_kwargs)
+            else:
+                error_message = f"Failed to initialize PaddleOCR: {e}"
+                raise OCRError(error_message) from e
         except Exception as e:
             error_message = f"Failed to initialize PaddleOCR: {e}"
             raise OCRError(error_message) from e
@@ -178,8 +201,9 @@ class PaddleOCRWrapper(BaseOCRProcessor):
         logger.info("Running OCR prediction on image...")
 
         try:
-            with timeout_context(self.ocr_timeout):
-                results = self.ocr.predict(str(processed_path))
+            results = run_with_timeout(
+                self.ocr.predict, self.ocr_timeout, str(processed_path)
+            )
 
             logger.info(f"OCR prediction completed, found {len(results)} page(s)")
 
@@ -220,8 +244,9 @@ class PaddleOCRWrapper(BaseOCRProcessor):
         logger.info("Running OCR prediction on PDF...")
 
         try:
-            with timeout_context(self.ocr_timeout):
-                results = self.ocr.predict(str(file_path))
+            results = run_with_timeout(
+                self.ocr.predict, self.ocr_timeout, str(file_path)
+            )
 
             logger.info(f"OCR prediction completed, found {len(results)} page(s)")
 

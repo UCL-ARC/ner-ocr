@@ -1,5 +1,6 @@
 """OCR pipeline module."""
 
+import os
 from pathlib import Path
 from time import time
 
@@ -33,6 +34,8 @@ class OCRPipeline(BasePipeline):
         self.transformer = TrOCRWrapper(
             model=TrOCRModels[config.transformer_ocr.model],
             device=config.transformer_ocr.device,
+            use_fp16=config.transformer_ocr.use_fp16,
+            local=os.environ.get("HF_HUB_OFFLINE", "0") == "1",
         )
 
     def get_output_suffix(self) -> str:

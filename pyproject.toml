@@ -1,13 +1,23 @@
 # ---------------------------------------------------------------------
 # DEPENDENCY GROUPS
 # ---------------------------------------------------------------------
+# Usage:
+# Local Mac (CPU):     uv sync                    (uses default groups)
+# Local Mac (MPS):     uv sync                    (same, MPS auto-detected)
+# Docker Dev (CPU):    Install from requirements-docker.txt
+# Docker TRE (GPU):    Install from requirements-docker.txt + CUDA wheels
+#
+# Export for Docker (excludes torch/paddle - installed separately):
+# uv export --no-group base --no-group dev -o requirements-docker.txt
 
 [dependency-groups]
-# note in the docker we install these manually, for local you will need them
+# Base ML dependencies - installed differently per environment
+# For local dev: uv will install CPU versions automatically
 base = [
     "accelerate>=1.12.0",
-    "paddlepaddle>=3.2.2",
-    "torch>=2.9.1",
+    "paddlepaddle>=3.0.0", # CPU version, works on Mac
+    "torch>=2.5.0", # uv will pick appropriate version for platform
+    "torchvision>=0.20.0",
 ]
 dev = [
     "mypy>=1.17.1",
@@ -26,6 +36,7 @@ authors = [
 dependencies = [
     "fitz>=0.0.1.dev2",
     "frontend>=0.0.3",
+    "gradio>=5.0.0",
     "ipython>=9.6.0",
     "langchain-core>=1.0.5",
     "levenshtein>=0.27.3",
@@ -63,6 +74,7 @@ force-exclude = true
 target-version = "py313"
 lint.ignore = [
     "ANN003", # kwargs type annotation required
+    "ANN401", # Any in *args/**kwargs (appropriate for generic wrappers)
     "ARG002", # kwargs unused
     "COM812", # trailing commas (ruff-format recommended)
     "D104", # module docstring
@@ -77,10 +89,23 @@ lint.ignore = [
     "FIX002", # implicit trust that TODOs are not trivial, or else they would be fixed
     "ISC001", # simplify implicit str concatenation (ruff-format recommended)
     "RUF012", # where ruff wants type annotations using ClassVar for subclasses - mypy doesnt care, so why would we?
+    "TC002", # Move third-party import into type-checking block (often used at runtime)
     "TD002", # name for TO DO
     "TD003", # pedantic issue number requester in to dos
 ]
-lint.per-file-ignores = {"tests*" = [
+lint.per-file-ignores = {"src/ui/app.py" = [
+    "B008", # Function call in default argument (gr.Progress pattern)
+    "BLE001", # Blind exception (UI needs graceful error handling)
+    "FBT001", # Boolean positional argument (Gradio event handlers)
+    "FBT002", # Boolean default argument (Gradio event handlers)
+    "PLR0913", # Too many arguments (Gradio event handlers need many inputs)
+    "PLR0915", # Too many statements (UI builder functions are large)
+    "PLW0603", # Global statement (lazy-loading pattern for models)
+    "S104", # Binding to all interfaces (intentional for Docker)
+    "SIM117", # Nested with statements (Gradio UI pattern)
+], "src/ui/visualisation.py" = [
+    "PLR0912", # Too many branches (entity rendering has many field checks)
+], "tests*" = [
     "ANN001", # No return type annotation
     "ANN201", # No return type annotation
     "ARG001", # Unused function argument

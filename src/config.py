@@ -16,7 +16,7 @@ class OCRConfig:
     use_doc_unwarping: bool = False
     use_textline_orientation: bool = False
     return_word_box: bool = True
-    device: str = "cpu"
+    device: str = "cpu"  # Options: 'cpu', 'gpu' (PaddleOCR uses 'gpu', not 'cuda')
 
 
 @dataclass
@@ -25,6 +25,7 @@ class TransformerOCRConfig:
 
     model: str = "LARGE_HANDWRITTEN"
     device: str = "cpu"
+    use_fp16: bool = True  # Use half-precision for faster GPU loading/inference
 
 
 @dataclass

@@ -1,0 +1,60 @@
+# ===============================================
+# Development Dockerfile (CPU-only, cross-platform)
+# ===============================================
+# Use this for local testing on Mac/Windows/Linux without GPU
+# 
+# Build:  docker build -f Dockerfile.dev -t ner-ocr:dev .
+# Run:    docker run -p 7860:7860 -v "$PWD/data":/app/data ner-ocr:dev --mode workbench
+#
+FROM python:3.13-slim
+
+# -------------------------------
+# 1) System dependencies
+# -------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl ca-certificates \
+        build-essential gcc \
+        poppler-utils \
+        libglib2.0-0 libgl1 libsm6 libxext6 libxrender1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# -------------------------------
+# 2) Set working directory
+# -------------------------------
+WORKDIR /app
+
+# -------------------------------
+# 3) Install Python requirements
+# -------------------------------
+# Use requirements-docker.txt (excludes torch/paddle - installed separately below)
+COPY requirements-docker.txt .
+RUN pip install --no-cache-dir -r requirements-docker.txt
+
+# -------------------------------
+# 4) Install CPU-only PyTorch & PaddlePaddle
+# -------------------------------
+# CPU versions work on all platforms (x86, ARM64)
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir paddlepaddle==3.0.0
+RUN pip install --no-cache-dir accelerate
+
+# -------------------------------
+# 5) Copy app code
+# -------------------------------
+COPY src/ ./src/
+COPY scripts/entrypoint.py ./entrypoint.py
+COPY data/ ./data/
+COPY config.yaml ./config.yaml
+
+ENV PYTHONPATH=/app
+
+# -------------------------------
+# 6) Expose ports
+# -------------------------------
+EXPOSE 7860
+
+# -------------------------------
+# 7) Entrypoint
+# -------------------------------
+ENTRYPOINT ["python", "entrypoint.py"]
+CMD ["--help"]

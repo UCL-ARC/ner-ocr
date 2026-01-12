@@ -66,9 +66,9 @@ class QwenEntityExtractor(EntityExtractor):
                 self.model_name,
                 cache_dir=self.cache_dir,
                 device_map=self.device or "auto",
-                dtype="auto",
+                torch_dtype="auto",
                 local_files_only=self.local_files_only,
-            )  # Note we have device map as auto here
+            )
             self._is_loaded = True
         except Exception as e:
             error_msg = f"Error loading model or tokenizer: {e}"

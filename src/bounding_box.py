@@ -12,7 +12,7 @@ from .custom_types import BaseOCRProcessor, OCRResult, PageResult, SupportedExte
 from .exceptions import ImageProcessingError, OCRError
 from .image_processing import ImageProcessor
 from .pdf_processing import PDFProcessor
-from .utils import timeout_context
+from .utils import run_with_timeout
 
 
 class BoundingBoxExtractor:
@@ -97,8 +97,18 @@ class PaddleOCRWrapper(BaseOCRProcessor):
             max_side_limit: Maximum allowed size for any side of processed images
             ocr_timeout: Timeout in seconds for OCR operations
             **paddle_kwargs: Additional arguments to pass to PaddleOCR
+                Note: 'device' is converted to 'use_gpu' for PaddleOCR compatibility
+                      ('gpu' or 'cuda' -> use_gpu=True, 'cpu' -> use_gpu=False)
 
         """
+        # Convert device parameter to use_gpu for PaddleOCR compatibility
+        if "device" in paddle_kwargs:
+            device = paddle_kwargs.pop("device").lower()
+            paddle_kwargs["use_gpu"] = device in ("gpu", "cuda")
+            logger.debug(
+                f"Converted device='{device}' to use_gpu={paddle_kwargs['use_gpu']}"
+            )
+
         try:
             self.ocr = PaddleOCR(**paddle_kwargs)
         except Exception as e:
@@ -178,8 +188,9 @@ class PaddleOCRWrapper(BaseOCRProcessor):
         logger.info("Running OCR prediction on image...")
 
         try:
-            with timeout_context(self.ocr_timeout):
-                results = self.ocr.predict(str(processed_path))
+            results = run_with_timeout(
+                self.ocr.predict, self.ocr_timeout, str(processed_path)
+            )
 
             logger.info(f"OCR prediction completed, found {len(results)} page(s)")
 
@@ -220,8 +231,9 @@ class PaddleOCRWrapper(BaseOCRProcessor):
         logger.info("Running OCR prediction on PDF...")
 
         try:
-            with timeout_context(self.ocr_timeout):
-                results = self.ocr.predict(str(file_path))
+            results = run_with_timeout(
+                self.ocr.predict, self.ocr_timeout, str(file_path)
+            )
 
             logger.info(f"OCR prediction completed, found {len(results)} page(s)")
 

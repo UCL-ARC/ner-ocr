@@ -2,20 +2,76 @@
 
 import json
 import signal
+import sys
 import types
-from collections.abc import Generator
+from collections.abc import Callable, Generator
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
 from contextlib import contextmanager
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import numpy as np
 from loguru import logger
 
+T = TypeVar("T")
+
+
+def run_with_timeout(
+    func: Callable[..., T], timeout: int, *args: Any, **kwargs: Any
+) -> T:
+    """
+    Run a function with a timeout (thread-safe, works in any thread).
+
+    Args:
+        func: The function to run
+        timeout: Timeout in seconds
+        *args: Positional arguments to pass to func
+        **kwargs: Keyword arguments to pass to func
+
+    Returns:
+        The result of func(*args, **kwargs)
+
+    Raises:
+        TimeoutError: If the function doesn't complete within timeout
+
+    """
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(func, *args, **kwargs)
+        try:
+            return future.result(timeout=timeout)
+        except FuturesTimeout as e:
+            error_msg = f"Operation timed out after {timeout} seconds"
+            raise TimeoutError(error_msg) from e
+
 
 @contextmanager
 def timeout_context(duration: int) -> Generator[None]:
-    """Context manager for adding timeout to operations."""
+    """
+    Context manager for adding timeout to operations.
+
+    NOTE: This only works in the main thread on Unix systems.
+    For thread-safe timeouts, use run_with_timeout() instead.
+    """
+    # Check if we're in the main thread
+    import threading
+
+    if threading.current_thread() is not threading.main_thread():
+        # In a worker thread, just yield without timeout
+        # The caller should use run_with_timeout() for thread-safe timeouts
+        logger.warning(
+            "timeout_context called from non-main thread, timeout disabled. "
+            "Use run_with_timeout() for thread-safe timeouts."
+        )
+        yield
+        return
+
+    # Check platform - SIGALRM only works on Unix
+    if sys.platform == "win32":
+        logger.warning("timeout_context not supported on Windows, timeout disabled.")
+        yield
+        return
 
     def timeout_handler(_signum: int, _frame: types.FrameType | None) -> None:
         error_message = f"Operation timed out after {duration} seconds"
@@ -65,7 +121,7 @@ def save_json(data: dict | list | str | float | bool | None, path: Path) -> None
 
 
 # TO DO: this is messy - refactor later
-def to_serialisable(obj: Any) -> dict | list | str | float | bool | None:  # noqa: ANN401
+def to_serialisable(obj: Any) -> dict | list | str | float | bool | None:
     """Convert an object to a JSON-serialisable format."""
     if is_dataclass(obj) and not isinstance(obj, type):
         obj = asdict(obj)

@@ -38,6 +38,9 @@ class TrOCRWrapper(BaseTransformerOCR):
         model: TrOCRModels = TrOCRModels.BASE_HANDWRITTEN,
         cache_dir: str | None = None,
         device: str | None = None,
+        *,
+        use_fp16: bool = True,
+        local: bool = False,
     ) -> None:
         """
         Initialise the TrOCR processor and model.
@@ -46,6 +49,10 @@ class TrOCRWrapper(BaseTransformerOCR):
             model: Name of the pre-trained TrOCR model.
             cache_dir: Optional directory path for caching model files.
             device: Device to run the model on ('cpu', 'cuda', or 'mps').
+            use_fp16: Use half-precision (fp16) for faster loading and inference on GPU.
+                      Automatically disabled for CPU. Default is True.
+            local: If True, only load from local cache (no network calls).
+                   Use for network-isolated environments like TREs.
 
         """
         if not isinstance(model, TrOCRModels):
@@ -58,23 +65,54 @@ class TrOCRWrapper(BaseTransformerOCR):
         self.model_name = model.value
         self.cache_dir = cache_dir
         self.device = self._get_device(device)
+        self.local_files_only = local
+
+        # Determine dtype for GPU acceleration while maintaining accuracy
+        # BF16 preferred: same dynamic range as FP32 (better accuracy), but half the memory
+        # FP16 fallback: faster but slightly lower numerical precision
+        self.dtype = self._get_optimal_dtype(use_reduced_precision=use_fp16)
 
         logger.info(f"Loading TrOCR model '{self.model_name}'...")
         logger.info(f"Cache directory: {self.cache_dir}")
         logger.info(f"Device: {self.device}")
+        logger.info(f"Using dtype: {self.dtype}")
 
         try:
             # Load processor (for image preprocessing + text decoding)
             self.processor = TrOCRProcessor.from_pretrained(
-                self.model_name, cache_dir=self.cache_dir, use_fast=True
-            )
-            # Load model (encoder + decoder)
-            self.model = VisionEncoderDecoderModel.from_pretrained(
-                self.model_name, cache_dir=self.cache_dir
+                self.model_name,
+                cache_dir=self.cache_dir,
+                use_fast=True,
+                local_files_only=self.local_files_only,
             )
 
-            # Move model to the selected device and set to eval mode
-            self.model.to(self.device)
+            # Load model with optimizations for faster CUDA loading:
+            # - torch_dtype: Use fp16 on GPU (2x smaller, faster transfer)
+            # - low_cpu_mem_usage: Avoid creating full CPU copy before GPU transfer
+            # - device_map: Load directly to target device when using CUDA
+            if self.device == "cuda":
+                logger.info(
+                    "Using optimized CUDA loading (fp16, direct device mapping)"
+                )
+                self.model = VisionEncoderDecoderModel.from_pretrained(
+                    self.model_name,
+                    cache_dir=self.cache_dir,
+                    torch_dtype=self.dtype,
+                    low_cpu_mem_usage=True,
+                    device_map="auto",
+                    local_files_only=self.local_files_only,
+                )
+            else:
+                # For CPU/MPS, load normally then move to device
+                self.model = VisionEncoderDecoderModel.from_pretrained(
+                    self.model_name,
+                    cache_dir=self.cache_dir,
+                    torch_dtype=self.dtype,
+                    low_cpu_mem_usage=True,
+                    local_files_only=self.local_files_only,
+                )
+                self.model.to(self.device)
+
             self.model.eval()
 
             logger.info(f"TrOCR model loaded successfully on {self.device}")
@@ -86,6 +124,38 @@ class TrOCRWrapper(BaseTransformerOCR):
     # -------------------------------------------------------------------------
     # Utility functions
     # -------------------------------------------------------------------------
+
+    def _get_optimal_dtype(self, *, use_reduced_precision: bool) -> torch.dtype:
+        """
+        Determine the optimal dtype for the model.
+
+        Prefers BF16 over FP16 for better numerical stability (same dynamic range as FP32).
+        Falls back to FP32 on CPU or when reduced precision is disabled.
+
+        Args:
+            use_reduced_precision: Whether to use reduced precision (bf16/fp16) on GPU.
+
+        Returns:
+            The optimal torch dtype for the current device.
+
+        """
+        if not use_reduced_precision or self.device == "cpu":
+            return torch.float32
+
+        # Check for BF16 support (preferred for accuracy)
+        if self.device == "cuda" and torch.cuda.is_bf16_supported():
+            logger.info("Using BF16 for optimal speed/accuracy trade-off (Ampere+ GPU)")
+            return torch.bfloat16
+        if self.device == "mps":
+            # MPS supports BF16 on Apple Silicon
+            logger.info("Using BF16 on Apple Silicon MPS")
+            return torch.bfloat16
+        if self.device == "cuda":
+            # Older CUDA GPUs: fall back to FP16
+            logger.info("Using FP16 (BF16 not supported on this GPU)")
+            return torch.float16
+
+        return torch.float32
 
     def _get_device(self, device: str | None) -> str:
         """Determine the best available compute device for inference."""

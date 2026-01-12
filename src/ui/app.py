@@ -306,8 +306,10 @@ def run_ocr(
 def run_search(
     query_type: str,
     semantic_query: str,
-    positional_x: float,
-    positional_y: float,
+    positional_x1: float,
+    positional_y1: float,
+    positional_x2: float,
+    positional_y2: float,
     threshold: float,
     search_padding: float,
     progress: gr.Progress = gr.Progress(),
@@ -343,17 +345,19 @@ def run_search(
                 search_type="fuzzy",
             )
         else:
-            # Positional query using x,y inputs
+            # Positional query using rectangle coordinates
             query = PositionalQuery(
-                x=positional_x, y=positional_y, search_radius=search_padding
+                x1=positional_x1, y1=positional_y1, x2=positional_x2, y2=positional_y2
             )
 
         # Store the search config used
         STATE.search_config = {
             "query_type": query_type,
             "semantic_query": semantic_query if query_type == "semantic" else None,
-            "positional_x": positional_x if query_type == "positional" else None,
-            "positional_y": positional_y if query_type == "positional" else None,
+            "positional_x1": positional_x1 if query_type == "positional" else None,
+            "positional_y1": positional_y1 if query_type == "positional" else None,
+            "positional_x2": positional_x2 if query_type == "positional" else None,
+            "positional_y2": positional_y2 if query_type == "positional" else None,
             "threshold": threshold,
             "search_padding": search_padding,
         }
@@ -681,14 +685,14 @@ def on_query_type_change(query_type: str) -> tuple:
     if query_type == "semantic":
         return (
             gr.update(visible=True),  # semantic_query
-            gr.update(visible=False),  # positional_x
-            gr.update(visible=False),  # positional_y
+            gr.update(visible=False),  # positional_row1
+            gr.update(visible=False),  # positional_row2
             gr.update(visible=True),  # threshold
         )
     return (
         gr.update(visible=False),  # semantic_query
-        gr.update(visible=True),  # positional_x
-        gr.update(visible=True),  # positional_y
+        gr.update(visible=True),  # positional_row1
+        gr.update(visible=True),  # positional_row2
         gr.update(visible=False),  # threshold
     )
 
@@ -727,9 +731,10 @@ def compile_configuration() -> tuple[str, str]:
             }
         else:
             query_config["query_kwargs"] = {
-                "x": STATE.search_config.get("positional_x", 0),
-                "y": STATE.search_config.get("positional_y", 0),
-                "search_radius": STATE.search_config.get("search_padding", 50),
+                "x1": STATE.search_config.get("positional_x1", 0),
+                "y1": STATE.search_config.get("positional_y1", 0),
+                "x2": STATE.search_config.get("positional_x2", 100),
+                "y2": STATE.search_config.get("positional_y2", 100),
             }
         config_dict["queries"] = [query_config]
 
@@ -961,17 +966,25 @@ def create_app() -> gr.Blocks:
                             visible=True,
                         )
 
-                        # Positional query inputs
-                        positional_x = gr.Number(
-                            label="X Coordinate (pixels)",
-                            value=100,
-                            visible=False,
-                        )
-                        positional_y = gr.Number(
-                            label="Y Coordinate (pixels)",
-                            value=100,
-                            visible=False,
-                        )
+                        # Positional query inputs (rectangle selection)
+                        with gr.Row(visible=False) as positional_row1:
+                            positional_x1 = gr.Number(
+                                label="X1 - Left (pixels)",
+                                value=100,
+                            )
+                            positional_y1 = gr.Number(
+                                label="Y1 - Top (pixels)",
+                                value=100,
+                            )
+                        with gr.Row(visible=False) as positional_row2:
+                            positional_x2 = gr.Number(
+                                label="X2 - Right (pixels)",
+                                value=500,
+                            )
+                            positional_y2 = gr.Number(
+                                label="Y2 - Bottom (pixels)",
+                                value=300,
+                            )
 
                         # Common
                         search_padding = gr.Slider(
@@ -1152,7 +1165,7 @@ def create_app() -> gr.Blocks:
         query_type.change(
             fn=on_query_type_change,
             inputs=[query_type],
-            outputs=[semantic_query, positional_x, positional_y, threshold],
+            outputs=[semantic_query, positional_row1, positional_row2, threshold],
         )
 
         # Search
@@ -1161,8 +1174,10 @@ def create_app() -> gr.Blocks:
             inputs=[
                 query_type,
                 semantic_query,
-                positional_x,
-                positional_y,
+                positional_x1,
+                positional_y1,
+                positional_x2,
+                positional_y2,
                 threshold,
                 search_padding,
             ],

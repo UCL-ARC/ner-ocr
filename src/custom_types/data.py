@@ -50,11 +50,12 @@ class SearchResult:
 
 @dataclass
 class PositionalQuery:
-    """Structured positional query for searching text in OCR results."""
+    """Structured positional query for searching text in OCR results using a rectangle."""
 
-    x: float
-    y: float
-    search_radius: float = 50.0  # Pixel radius
+    x1: float  # Top-left X coordinate
+    y1: float  # Top-left Y coordinate
+    x2: float  # Bottom-right X coordinate
+    y2: float  # Bottom-right Y coordinate
 
 
 @dataclass

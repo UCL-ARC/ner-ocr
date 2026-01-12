@@ -162,24 +162,33 @@ class RPAProcessor(BaseRPAProcessor):
 
         # Draw search area (for positional search)
         if isinstance(query, PositionalQuery):
-            circle = plt.Circle(
-                (query.x, query.y),
-                query.search_radius,
+            # Normalize coordinates
+            x1, x2 = min(query.x1, query.x2), max(query.x1, query.x2)
+            y1, y2 = min(query.y1, query.y2), max(query.y1, query.y2)
+            width = x2 - x1
+            height = y2 - y1
+
+            rect = plt.Rectangle(
+                (x1, y1),
+                width,
+                height,
                 color="red",
                 fill=False,
                 linewidth=3,
                 alpha=0.8,
                 label="Search Area",
             )
-            ax.add_patch(circle)
+            ax.add_patch(rect)
 
-            # Mark query center
+            # Mark center of search area
+            center_x = (x1 + x2) / 2
+            center_y = (y1 + y2) / 2
             ax.plot(
-                query.x,
-                query.y,
+                center_x,
+                center_y,
                 "ro",
                 markersize=10,
-                label=f"Query Center ({query.x:.0f}, {query.y:.0f})",
+                label=f"Search Center ({center_x:.0f}, {center_y:.0f})",
             )
 
         # Draw all OCR results on the page
@@ -208,7 +217,7 @@ class RPAProcessor(BaseRPAProcessor):
         # Add title with search info
         if isinstance(query, PositionalQuery):
             title = "Positional Search Results\n"
-            title += f"Query: ({query.x:.0f}, {query.y:.0f}), Radius: {query.search_radius:.0f}px\n"
+            title += f"Rectangle: ({query.x1:.0f}, {query.y1:.0f}) to ({query.x2:.0f}, {query.y2:.0f})\n"
         else:
             title = "Semantic Search Results\n"
             title += f'Query: "{getattr(query, "text", "N/A")}"\n'
@@ -255,19 +264,31 @@ class RPAProcessor(BaseRPAProcessor):
 
         Args:
             page: PageResult containing OCR data
-            query: PositionalQuery with x, y, and search_radius
+            query: PositionalQuery with rectangle coordinates (x1, y1, x2, y2)
+
         Returns:
             List of OCRResult that match the positional query
 
         """
         matches = []
 
+        # Normalise rectangle coordinates (ensure x1 < x2 and y1 < y2)
+        query_x1 = min(query.x1, query.x2)
+        query_y1 = min(query.y1, query.y2)
+        query_x2 = max(query.x1, query.x2)
+        query_y2 = max(query.y1, query.y2)
+
         for ocr_result in page.data:
-            # Check for intersection between query circle and OCR entry bounding box
-            if self._circle_rectangle_intersection(
-                query.x, query.y, query.search_radius, ocr_result.poly
-            ):
-                matches.append(ocr_result)  # noqa: PERF401
+            # Build query rectangle as list of corner points for _rectangle_rectangle_intersection
+            query_rect = [
+                [query_x1, query_y1],
+                [query_x2, query_y1],
+                [query_x2, query_y2],
+                [query_x1, query_y2],
+            ]
+            # Check for intersection between query rectangle and OCR entry bounding box
+            if self._rectangle_rectangle_intersection(query_rect, ocr_result.poly):
+                matches.append(ocr_result)
 
         return matches
 

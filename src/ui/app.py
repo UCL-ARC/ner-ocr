@@ -1253,7 +1253,6 @@ def launch_workbench(
         show_error=True,
         quiet=False,
         css=custom_css,
-        analytics_enabled=False,  # Disable for TRE network isolation
     )
 
 

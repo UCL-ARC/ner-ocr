@@ -97,20 +97,33 @@ class PaddleOCRWrapper(BaseOCRProcessor):
             max_side_limit: Maximum allowed size for any side of processed images
             ocr_timeout: Timeout in seconds for OCR operations
             **paddle_kwargs: Additional arguments to pass to PaddleOCR
-                Note: 'device' is converted to 'use_gpu' for PaddleOCR compatibility
-                      ('gpu' or 'cuda' -> use_gpu=True, 'cpu' -> use_gpu=False)
+                Note: 'device' parameter is handled for PaddleOCR compatibility
+                      - PaddleOCR 3.x+: uses 'device' directly ('cpu', 'gpu')
+                      - Older versions: converted to 'use_gpu' boolean
 
         """
-        # Convert device parameter to use_gpu for PaddleOCR compatibility
+        # Normalize device parameter for PaddleOCR compatibility
         if "device" in paddle_kwargs:
-            device = paddle_kwargs.pop("device").lower()
-            paddle_kwargs["use_gpu"] = device in ("gpu", "cuda")
-            logger.debug(
-                f"Converted device='{device}' to use_gpu={paddle_kwargs['use_gpu']}"
-            )
+            device = paddle_kwargs["device"].lower()
+            # Normalize 'cuda' to 'gpu' for PaddleOCR
+            if device == "cuda":
+                paddle_kwargs["device"] = "gpu"
+            logger.debug(f"Using device='{paddle_kwargs['device']}'")
 
         try:
             self.ocr = PaddleOCR(**paddle_kwargs)
+        except (TypeError, ValueError) as e:
+            # Fallback for older PaddleOCR versions that use use_gpu instead of device
+            if "device" in paddle_kwargs and "Unknown argument" in str(e):
+                device = paddle_kwargs.pop("device")
+                paddle_kwargs["use_gpu"] = device in ("gpu", "cuda")
+                logger.debug(
+                    f"Falling back to use_gpu={paddle_kwargs['use_gpu']} for older PaddleOCR"
+                )
+                self.ocr = PaddleOCR(**paddle_kwargs)
+            else:
+                error_message = f"Failed to initialize PaddleOCR: {e}"
+                raise OCRError(error_message) from e
         except Exception as e:
             error_message = f"Failed to initialize PaddleOCR: {e}"
             raise OCRError(error_message) from e

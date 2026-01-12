@@ -105,9 +105,10 @@ class OCRPipeline(BasePipeline):
                 verbose=True,
             )
             query_obj = PositionalQuery(
-                x=query_kwargs["x"],
-                y=query_kwargs["y"],
-                search_radius=query_kwargs.get("search_radius", 100),
+                x1=query_kwargs["x1"],
+                y1=query_kwargs["y1"],
+                x2=query_kwargs["x2"],
+                y2=query_kwargs["y2"],
             )
         else:
             error_msg = f"Unknown query type: {query_type}"

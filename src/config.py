@@ -26,6 +26,7 @@ class TransformerOCRConfig:
     model: str = "LARGE_HANDWRITTEN"
     device: str = "cpu"
     use_fp16: bool = True  # Use half-precision for faster GPU loading/inference
+    max_new_tokens: int = 128  # Maximum tokens to generate (increase for longer text)
 
 
 @dataclass

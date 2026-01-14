@@ -89,7 +89,9 @@ def get_ocr_processor(
     return _ocr_processor
 
 
-def get_transformer(model_name: str, device: str = "cpu") -> TrOCRWrapper:
+def get_transformer(
+    model_name: str, device: str = "cpu", max_new_tokens: int = 128
+) -> TrOCRWrapper:
     """Get or create transformer OCR with specific model."""
     import os
 
@@ -107,6 +109,7 @@ def get_transformer(model_name: str, device: str = "cpu") -> TrOCRWrapper:
             model=TrOCRModels[model_name],
             device=device,
             local=offline_mode,
+            max_new_tokens=max_new_tokens,
         )
         _transformer_model_name = model_name
     return _transformer
@@ -484,6 +487,7 @@ def run_search(
 def run_enhancement(
     model_name: str,
     device: str,
+    max_new_tokens: int,
     progress: gr.Progress = gr.Progress(),
 ) -> tuple[list[list[str]], str, str]:
     """Run transformer enhancement on search results."""
@@ -507,12 +511,13 @@ def run_enhancement(
     STATE.enhancement_config = {
         "model": model_name,
         "device": device,
+        "max_new_tokens": max_new_tokens,
     }
 
     progress(0.05, desc=f"Loading {model_name} model (this may take a moment)...")
 
     try:
-        transformer = get_transformer(model_name, device)
+        transformer = get_transformer(model_name, device, max_new_tokens)
 
         progress(0.15, desc="Enhancing text regions...")
 
@@ -1125,6 +1130,14 @@ def create_app() -> gr.Blocks:
                             value="cpu",
                             label="Device",
                         )
+                        enhance_max_tokens = gr.Slider(
+                            minimum=16,
+                            maximum=512,
+                            value=128,
+                            step=16,
+                            label="Max New Tokens",
+                            info="Maximum tokens to generate (increase for longer text)",
+                        )
 
                         gr.Markdown("---")
                         run_enhance_btn = gr.Button(
@@ -1307,7 +1320,7 @@ def create_app() -> gr.Blocks:
         # Enhancement - with model and device selection
         run_enhance_btn.click(
             fn=run_enhancement,
-            inputs=[enhance_model, enhance_device],
+            inputs=[enhance_model, enhance_device, enhance_max_tokens],
             outputs=[enhance_table, enhance_status, status_html],
         )
 

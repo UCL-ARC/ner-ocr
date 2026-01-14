@@ -81,6 +81,7 @@ ocr:
 transformer_ocr:
   model: "LARGE_HANDWRITTEN"  # TrOCR model variant
   device: cpu                 # 'cpu', 'cuda', or 'mps'
+  max_new_tokens: 128         # Max tokens to generate (increase for longer text)
 
 # Search Queries
 queries:
@@ -172,6 +173,7 @@ Improves OCR text quality by re-processing cropped text regions through Microsof
 |--------|------|---------|-------------|
 | `model` | str | "LARGE_HANDWRITTEN" | TrOCR model variant (see below) |
 | `device` | str | "cpu" | `cpu`, `cuda`, or `mps` (Apple Silicon) |
+| `max_new_tokens` | int | 128 | Maximum tokens to generate (increase for longer text) |
 
 #### Available Models
 

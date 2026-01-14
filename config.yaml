@@ -10,6 +10,7 @@ ocr:
 transformer_ocr:
   model: "LARGE_HANDWRITTEN"
   device: cpu
+  max_new_tokens: 128  # Maximum tokens to generate (increase for longer text)
 
 queries:
   - task: "Extract address"

@@ -33,7 +33,7 @@ class TrOCRWrapper(BaseTransformerOCR):
     Provides image preprocessing, inference, and confidence scoring.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         model: TrOCRModels = TrOCRModels.BASE_HANDWRITTEN,
         cache_dir: str | None = None,
@@ -41,6 +41,7 @@ class TrOCRWrapper(BaseTransformerOCR):
         *,
         use_fp16: bool = True,
         local: bool = False,
+        max_new_tokens: int = 128,
     ) -> None:
         """
         Initialise the TrOCR processor and model.
@@ -53,6 +54,7 @@ class TrOCRWrapper(BaseTransformerOCR):
                       Automatically disabled for CPU. Default is True.
             local: If True, only load from local cache (no network calls).
                    Use for network-isolated environments like TREs.
+            max_new_tokens: Maximum number of tokens to generate. Increase for longer text.
 
         """
         if not isinstance(model, TrOCRModels):
@@ -66,6 +68,7 @@ class TrOCRWrapper(BaseTransformerOCR):
         self.cache_dir = cache_dir
         self.device = self._get_device(device)
         self.local_files_only = local
+        self.max_new_tokens = max_new_tokens
 
         # Determine dtype for GPU acceleration while maintaining accuracy
         # BF16 preferred: same dynamic range as FP32 (better accuracy), but half the memory
@@ -221,6 +224,7 @@ class TrOCRWrapper(BaseTransformerOCR):
             with torch.no_grad():
                 return_dict = self.model.generate(
                     pixel_values,
+                    max_new_tokens=self.max_new_tokens,
                     output_scores=True,
                     return_dict_in_generate=True,
                 )

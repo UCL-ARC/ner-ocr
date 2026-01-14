@@ -1,6 +1,9 @@
 """Entities data models."""
 
+from loguru import logger
 from pydantic import BaseModel, Field
+
+from .entity_builder import load_entities_from_yaml
 
 
 class AddressEntity(BaseModel):
@@ -16,7 +19,7 @@ class AddressEntity(BaseModel):
     )
     address_type: str | None = Field(
         None,
-        description="Type of address (e.g., institution, place of birth, current residence)",
+        description="Type of address. Either place of birth or place of residence",
     )
 
 
@@ -28,7 +31,19 @@ class AddressEntityList(BaseModel):
     )
 
 
-ENTITY_REGISTRY: dict[str, type[BaseModel]] = {
+# Built-in entities (always available)
+_BUILTIN_ENTITIES: dict[str, type[BaseModel]] = {
     "AddressEntity": AddressEntity,
     "AddressEntityList": AddressEntityList,
+}
+
+# Load custom entities from YAML
+_custom_entities = load_entities_from_yaml()
+if _custom_entities:
+    logger.info(f"Loaded {len(_custom_entities)} custom entities from entities.yaml")
+
+# Combined registry
+ENTITY_REGISTRY: dict[str, type[BaseModel]] = {
+    **_BUILTIN_ENTITIES,
+    **_custom_entities,
 }

@@ -25,4 +25,6 @@ entity_extraction:
   device: "cpu"
   entities:
     - AddressEntityList
+  line_threshold: 10  # Y-distance threshold for grouping items on the same line
+  gap_threshold: 40  # Y-distance threshold for inserting paragraph breaks
   

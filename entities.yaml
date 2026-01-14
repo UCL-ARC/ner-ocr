@@ -1,0 +1,67 @@
+# Custom Entity Definitions
+# =========================
+# Define your own entities for extraction here.
+# These are converted to Pydantic models at runtime.
+#
+# For Docker usage, mount this file:
+#   docker run -v ./entities.yaml:/app/entities.yaml ...
+#
+# Field Types:
+#   - str          : Required string
+#   - str | None   : Optional string (default)
+#   - int          : Required integer
+#   - int | None   : Optional integer
+#   - float        : Required float
+#   - float | None : Optional float
+#   - bool         : Required boolean
+#   - bool | None  : Optional boolean
+#
+# Each entity can have:
+#   - description: Description of the entity (shown to LLM)
+#   - fields: Dictionary of field definitions
+#   - create_list: If true, also creates {Name}List wrapper entity
+#
+# Field definitions:
+#   - type: The field type (see above)
+#   - description: Description of the field (helps LLM understand what to extract)
+#   - required: If true, field cannot be None (default: false)
+
+entities:
+  # Example: Person Entity
+  # Uncomment to use:
+  #
+ PersonEntity:
+   description: "Data model for a person entity"
+   create_list: true
+   fields:
+     first_name:
+       type: "str | None"
+       description: "Person's first name"
+     last_name:
+       type: "str | None"
+       description: "Person's last name"
+     date_of_birth:
+       type: "str | None"
+       description: "Date of birth in any format found"
+     raw_text:
+       type: "str"
+       description: "Raw text containing the person information"
+       required: true
+
+  # Example: Date Entity
+  # Uncomment to use:
+  #
+  # DateEntity:
+  #   description: "Data model for a date entity"
+  #   create_list: true
+  #   fields:
+  #     date_string:
+  #       type: "str"
+  #       description: "The date as it appears in the text"
+  #       required: true
+  #     date_type:
+  #       type: "str | None"
+  #       description: "Type of date (e.g., birth date, registration date, expiry date)"
+  #     normalised:
+  #       type: "str | None"
+  #       description: "Date normalised to YYYY-MM-DD format if possible"

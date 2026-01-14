@@ -16,7 +16,7 @@
 [license-badge]:            https://img.shields.io/badge/License-MIT-yellow.svg
 <!-- prettier-ignore-end -->
 
-A pipeline for NER using OCR
+A modular pipeline for extracting named entities from scanned documents using OCR and LLMs.
 
 This project is developed in collaboration with the
 [Centre for Advanced Research Computing](https://ucl.ac.uk/arc), University
@@ -32,6 +32,271 @@ Mack Nixon ([mack.nixon@ucl.ac.uk](mailto:mack.nixon@ucl.ac.uk))
 
 Centre for Advanced Research Computing, University College London
 ([arc.collaborations@ucl.ac.uk](mailto:arc.collaborations@ucl.ac.uk))
+
+---
+
+## Pipeline Overview
+
+The NER-OCR pipeline processes documents through four stages:
+
+```                   
+┌─────────────┐    ┌─────────────┐    ┌─────────────────┐    ┌───────────────────┐
+│   1. OCR    │───▶│  2. Search  │───▶│  3. Enhancement │───▶│ 4. Entity Extract │
+│ (PaddleOCR) │    │ (RPA/Query) │    │    (TrOCR)      │    │     (Qwen LLM)    │
+└─────────────┘    └─────────────┘    └─────────────────┘    └───────────────────┘
+```
+
+| Stage | Purpose | Model |
+|-------|---------|-------|
+| **1. OCR** | Extract text and bounding boxes from document images | PaddleOCR v5 |
+| **2. Search** | Filter regions of interest using semantic or positional queries | Fuzzy matching / coordinates |
+| **3. Enhancement** | Improve OCR text quality using transformer models | Microsoft TrOCR |
+| **4. Entity Extraction** | Extract structured entities from text using LLM | Qwen 3 |
+
+---
+
+## Configuration
+
+The pipeline is configured via two YAML files:
+
+| File | Purpose |
+|------|---------|
+| `config.yaml` | Pipeline settings (models, devices, queries) |
+| `entities.yaml` | Custom entity definitions |
+
+### config.yaml
+
+```yaml
+# OCR Configuration (PaddleOCR)
+ocr:
+  max_side_limit: 1500        # Max image dimension (pixels)
+  ocr_timeout: 400            # Timeout in seconds
+  use_doc_orientation_classify: false  # Auto-rotate documents
+  use_doc_unwarping: false    # Dewarp curved documents
+  use_textline_orientation: false      # Detect text line angles
+  return_word_box: true       # Return word-level boxes (vs line-level)
+  device: cpu                 # 'cpu' or 'gpu'
+
+# Transformer OCR Configuration (TrOCR)
+transformer_ocr:
+  model: "LARGE_HANDWRITTEN"  # TrOCR model variant
+  device: cpu                 # 'cpu', 'cuda', or 'mps'
+
+# Search Queries
+queries:
+  - task: "Extract address"
+    query_type: "semantic"    # 'semantic' or 'positional'
+    query_kwargs:
+      text: "address"         # Search term
+      threshold: 0.9          # Match confidence (0-1)
+      search_type: "fuzzy"    # 'fuzzy' or 'exact'
+      search_padding: 50.0    # Expand search region (pixels)
+
+# Entity Extraction Configuration (Qwen)
+entity_extraction:
+  model: "QWEN3_1_7B"         # Qwen model variant
+  device: "cpu"               # 'cpu', 'cuda', or 'mps'
+  entities:                   # Entities to extract
+    - AddressEntityList
+  line_threshold: 10          # Y-distance for same-line grouping
+  gap_threshold: 40           # Y-distance for paragraph breaks
+```
+
+---
+
+## Pipeline Stages
+
+### Stage 1: OCR (PaddleOCR)
+
+Extracts text and bounding boxes from PDF pages or images using PaddleOCR v5.
+
+#### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `max_side_limit` | int | 1500 | Maximum image dimension. Larger values = better accuracy, more memory |
+| `ocr_timeout` | int | 400 | Timeout in seconds per page |
+| `use_doc_orientation_classify` | bool | false | Auto-detect and correct document rotation |
+| `use_doc_unwarping` | bool | false | Correct warped/curved documents (e.g., book spines) |
+| `use_textline_orientation` | bool | false | Detect text line angles for skewed text |
+| `return_word_box` | bool | true | Return word-level boxes. Set `false` for line-level |
+| `device` | str | "cpu" | `cpu` or `gpu` (PaddleOCR uses 'gpu', not 'cuda') |
+
+#### Output
+
+Each detected text region includes:
+- Bounding box coordinates `[x_min, y_min, x_max, y_max]`
+- OCR text
+- Confidence score
+
+---
+
+### Stage 2: Search (RPA/Query)
+
+Filters OCR results to regions of interest using semantic or positional queries.
+
+#### Query Types
+
+**Semantic Query** - Find text matching a search term:
+```yaml
+queries:
+  - task: "Find addresses"
+    query_type: "semantic"
+    query_kwargs:
+      text: "address"         # Search term
+      threshold: 0.9          # Minimum match score (0-1)
+      search_type: "fuzzy"    # 'fuzzy' or 'exact'
+      search_padding: 50.0    # Expand region around match (pixels)
+```
+
+**Positional Query** - Find text at specific coordinates:
+```yaml
+queries:
+  - task: "Top-left region"
+    query_type: "positional"
+    query_kwargs:
+      x: 100                  # X coordinate
+      y: 200                  # Y coordinate
+      search_radius: 50       # Search radius (pixels)
+```
+
+---
+
+### Stage 3: Enhancement (TrOCR)
+
+Improves OCR text quality by re-processing cropped text regions through Microsoft's TrOCR transformer model. Particularly effective for handwritten text.
+
+#### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `model` | str | "LARGE_HANDWRITTEN" | TrOCR model variant (see below) |
+| `device` | str | "cpu" | `cpu`, `cuda`, or `mps` (Apple Silicon) |
+
+#### Available Models
+
+| Model | Use Case | Size |
+|-------|----------|------|
+| `BASE_HANDWRITTEN` | Handwritten text (faster) | ~330MB |
+| `BASE_PRINTED` | Printed text (faster) | ~330MB |
+| `LARGE_HANDWRITTEN` | Handwritten text (better accuracy) | ~560MB |
+| `LARGE_PRINTED` | Printed text (better accuracy) | ~560MB |
+| `BASE_STR` | Scene text (signs, labels) | ~330MB |
+| `LARGE_STR` | Scene text (better accuracy) | ~560MB |
+
+---
+
+### Stage 4: Entity Extraction (Qwen LLM)
+
+Extracts structured entities from text using Qwen large language models. The LLM receives the OCR text and entity schema, returning structured JSON.
+
+#### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `model` | str | "QWEN3_1_7B" | Qwen model variant (see below) |
+| `device` | str | "cpu" | `cpu`, `cuda`, or `mps` |
+| `entities` | list | ["AddressEntityList"] | Entity types to extract |
+| `line_threshold` | int | 10 | Y-distance for grouping text on same line |
+| `gap_threshold` | int | 40 | Y-distance for inserting paragraph breaks |
+
+#### Available Models
+
+| Model | Parameters | Memory | Speed |
+|-------|------------|--------|-------|
+| `QWEN3_1_7B` | 1.7B | ~4GB | Fast |
+| `QWEN3_4B_INSTRUCT_2507` | 4B | ~8GB | Medium |
+| `QWEN3_8B` | 8B | ~16GB | Slow |
+
+#### Text Formatting Options
+
+The `line_threshold` and `gap_threshold` control how OCR results are formatted into text for the LLM:
+
+- **`line_threshold`**: Items within this Y-distance are joined on the same line
+- **`gap_threshold`**: Gaps larger than this insert paragraph breaks
+
+Lower values = more line breaks. Higher values = denser text blocks.
+
+---
+
+## Custom Entities
+
+Define custom entities in `entities.yaml`. These are converted to Pydantic models at runtime.
+
+### entities.yaml Format
+
+```yaml
+entities:
+  PersonEntity:
+    description: "Data model for a person entity"
+    create_list: true    # Also creates PersonEntityList
+    fields:
+      first_name:
+        type: "str | None"
+        description: "Person's first name"
+      last_name:
+        type: "str | None"
+        description: "Person's last name"
+      date_of_birth:
+        type: "str | None"
+        description: "Date of birth in any format"
+      raw_text:
+        type: "str"
+        description: "Raw text containing person information"
+        required: true
+```
+
+### Field Types
+
+| Type | Description |
+|------|-------------|
+| `str` | Required string |
+| `str \| None` | Optional string |
+| `int` | Required integer |
+| `int \| None` | Optional integer |
+| `float` | Required float |
+| `float \| None` | Optional float |
+| `bool` | Required boolean |
+| `bool \| None` | Optional boolean |
+
+### Field Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `type` | str | "str \| None" | Field type |
+| `description` | str | "" | Description (shown to LLM - be specific!) |
+| `required` | bool | false | If true, field cannot be None |
+
+### Using Custom Entities
+
+After defining entities in `entities.yaml`, reference them in `config.yaml`:
+
+```yaml
+entity_extraction:
+  entities:
+    - PersonEntityList      # Your custom entity
+    - AddressEntityList     # Built-in entity
+```
+
+### Docker Usage
+
+Mount your custom entities file:
+
+```bash
+docker run -p 7860:7860 \
+  -v ./entities.yaml:/app/entities.yaml \
+  -v ./config.yaml:/app/config.yaml \
+  ner-ocr:latest --mode workbench
+```
+
+### Built-in Entities
+
+The following entities are always available:
+
+- **`AddressEntity`**: Street, city, state, postal code, country, address type
+- **`AddressEntityList`**: List of AddressEntity
+
+---
 
 ## Getting Started
 
@@ -117,6 +382,7 @@ docker run -p 7860:7860 \
   -v "$PWD/data":/app/data \
   -v "$PWD/models":/app/models \
   -v "$PWD/config.yaml":/app/config.yaml \
+  -v "$PWD/entities.yaml":/app/entities.yaml \
   ner-ocr:dev --mode workbench
 ```
 
@@ -128,6 +394,8 @@ Then open http://localhost:7860 in your browser.
 docker run --rm \
   -v "$PWD/data":/app/data \
   -v "$PWD/models":/app/models \
+  -v "$PWD/config.yaml":/app/config.yaml \
+  -v "$PWD/entities.yaml":/app/entities.yaml \
   ner-ocr:dev --mode ocr -i /app/data/input -o /app/data/output
 ```
 

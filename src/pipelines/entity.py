@@ -27,6 +27,8 @@ class EntityExtractionPipeline(BasePipeline):
             local=True,
         )
         self.entities = config.entity_extraction.entities
+        self.line_threshold = config.entity_extraction.line_threshold
+        self.gap_threshold = config.entity_extraction.gap_threshold
 
     def get_output_suffix(self) -> str:
         """Return the suffix for output files."""
@@ -41,7 +43,11 @@ class EntityExtractionPipeline(BasePipeline):
 
         page_results = []
         for page in parsed_result:
-            markdown_page = self._to_markdown(page)
+            markdown_page = self._to_markdown(
+                page,
+                line_threshold=self.line_threshold,
+                gap_threshold=self.gap_threshold,
+            )
 
             extracted_entities: dict[str, dict] = {}
             for entity in self.entities:

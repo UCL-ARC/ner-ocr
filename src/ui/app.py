@@ -135,6 +135,72 @@ def get_entity_extractor(model_name: str, device: str = "cpu") -> QwenEntityExtr
     return _entity_extractor
 
 
+def ocr_data_to_markdown(
+    items: list,
+    line_threshold: int = 10,
+    gap_threshold: int = 40,
+) -> str:
+    """
+    Convert OCR data with bounding boxes into Markdown text.
+
+    Args:
+        items: List of OCR data items with box coordinates and text
+        line_threshold: Y-distance threshold for grouping items on the same line
+        gap_threshold: Y-distance threshold for inserting blank lines between paragraphs
+
+    Returns:
+        Formatted markdown text
+
+    """
+    processed: list[dict] = []
+    for item in items:
+        box = item.box
+        if not box or len(box) != 4:  # noqa: PLR2004
+            continue
+
+        x_min, y_min, _, _ = box
+        text = item.transformer_text or item.text or ""
+        text = text.strip()
+        if text:
+            processed.append({"x": x_min, "y": y_min, "text": text})
+
+    if not processed:
+        return ""
+
+    processed.sort(key=lambda it: (it["y"], it["x"]))
+
+    lines: list[tuple[float, list[dict]]] = []
+    current_line: list[dict] = []
+    last_y: int | None = None
+
+    for it in processed:
+        y = it["y"]
+        if last_y is None or abs(y - last_y) <= line_threshold:
+            current_line.append(it)
+        else:
+            current_line.sort(key=lambda x: x["x"])
+            avg_y = sum(tok["y"] for tok in current_line) / len(current_line)
+            lines.append((avg_y, current_line))
+            current_line = [it]
+        last_y = y
+
+    if current_line:
+        current_line.sort(key=lambda x: x["x"])
+        avg_y = sum(tok["y"] for tok in current_line) / len(current_line)
+        lines.append((avg_y, current_line))
+
+    markdown_lines: list[str] = []
+    last_line_y: float | None = None
+
+    for line_y, line_tokens in lines:
+        if last_line_y is not None and (line_y - last_line_y) > gap_threshold:
+            markdown_lines.extend(["", "", ""])
+        markdown_lines.append("   ".join(tok["text"] for tok in line_tokens))
+        last_line_y = line_y
+
+    return "\n".join(markdown_lines)
+
+
 def reset_processors() -> None:
     """Reset all lazy-loaded processors."""
     global _ocr_processor, _transformer, _entity_extractor
@@ -490,10 +556,41 @@ def run_enhancement(
         )
 
 
+def preview_entity_input(
+    line_threshold: int,
+    gap_threshold: int,
+) -> str:
+    """
+    Preview the text that will be sent to the entity extraction model.
+
+    This allows users to see the formatted text before running extraction.
+    """
+    if not STATE.enhancement_complete or STATE.search_results is None:
+        return "*Complete Enhancement step first to preview input text*"
+
+    all_input_text = []
+    for page_idx, search_result in enumerate(STATE.search_results):
+        items = search_result.page_result.data
+        if not items:
+            continue
+
+        markdown_text = ocr_data_to_markdown(
+            items,
+            line_threshold=line_threshold,
+            gap_threshold=gap_threshold,
+        )
+        if markdown_text:
+            all_input_text.append(f"--- Page {page_idx + 1} ---\n{markdown_text}")
+
+    return "\n\n".join(all_input_text) if all_input_text else "No text extracted"
+
+
 def run_entity_extraction(
     model_name: str,
     device: str,
     entity_types: list[str],
+    line_threshold: int,
+    gap_threshold: int,
     progress: gr.Progress = gr.Progress(),
 ) -> tuple[str, str, str, str]:
     """
@@ -524,6 +621,8 @@ def run_entity_extraction(
         "model": model_name,
         "device": device,
         "entities": entity_types,
+        "line_threshold": line_threshold,
+        "gap_threshold": gap_threshold,
     }
 
     progress(0.05, desc=f"Loading {model_name} model (this may take a moment)...")
@@ -536,14 +635,10 @@ def run_entity_extraction(
         STATE.entity_results = []
 
         for page_idx, search_result in enumerate(STATE.search_results):
-            # Build text from enhanced results
+            # Build text from enhanced results using markdown conversion
             items = search_result.page_result.data
-            text_parts = []
-            for item in items:
-                text = item.transformer_text or item.text
-                text_parts.append(text)
 
-            if not text_parts:
+            if not items:
                 STATE.entity_results.append(
                     {
                         "page": page_idx + 1,
@@ -553,7 +648,11 @@ def run_entity_extraction(
                 )
                 continue
 
-            markdown_text = "\n".join(text_parts)
+            markdown_text = ocr_data_to_markdown(
+                items,
+                line_threshold=line_threshold,
+                gap_threshold=gap_threshold,
+            )
 
             # Extract entities for each selected entity type
             extracted = {}
@@ -1070,6 +1169,27 @@ def create_app() -> gr.Blocks:
                             label="Entity Types to Extract",
                         )
 
+                        gr.Markdown("### Text Formatting")
+                        entity_line_threshold = gr.Slider(
+                            minimum=1,
+                            maximum=50,
+                            value=10,
+                            step=1,
+                            label="Line Threshold",
+                            info="Y-distance threshold for grouping items on the same line",
+                        )
+                        entity_gap_threshold = gr.Slider(
+                            minimum=10,
+                            maximum=200,
+                            value=40,
+                            step=5,
+                            label="Gap Threshold",
+                            info="Y-distance threshold for inserting paragraph breaks",
+                        )
+                        preview_text_btn = gr.Button(
+                            "👁️ Preview Input Text", variant="secondary"
+                        )
+
                         gr.Markdown("---")
                         run_entity_btn = gr.Button(
                             "▶️ Run Extraction", variant="primary", size="lg"
@@ -1082,7 +1202,7 @@ def create_app() -> gr.Blocks:
                         gr.Markdown("### Input Text (sent to model)")
                         entity_input_text = gr.Textbox(
                             label="Input Text",
-                            value="*Run extraction to see input text*",
+                            value="*Complete Enhancement step, then click 'Preview Input Text' or run extraction*",
                             interactive=False,
                             lines=10,
                             max_lines=15,
@@ -1191,10 +1311,23 @@ def create_app() -> gr.Blocks:
             outputs=[enhance_table, enhance_status, status_html],
         )
 
-        # Entity extraction - with model, device, and entity type selection
+        # Preview entity input text
+        preview_text_btn.click(
+            fn=preview_entity_input,
+            inputs=[entity_line_threshold, entity_gap_threshold],
+            outputs=[entity_input_text],
+        )
+
+        # Entity extraction - with model, device, entity type selection, and thresholds
         run_entity_btn.click(
             fn=run_entity_extraction,
-            inputs=[entity_model, entity_device, entity_types],
+            inputs=[
+                entity_model,
+                entity_device,
+                entity_types,
+                entity_line_threshold,
+                entity_gap_threshold,
+            ],
             outputs=[entity_input_text, entity_output, entity_status, status_html],
         )
 

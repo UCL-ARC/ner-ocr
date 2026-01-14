@@ -35,6 +35,8 @@ class EntityExtractionConfig:
     model: str = "QWEN3_1_7B"
     device: str = "cpu"
     entities: list[str] = field(default_factory=lambda: ["AddressEntityList"])
+    line_threshold: int = 10  # Y-distance threshold for grouping items on the same line
+    gap_threshold: int = 40  # Y-distance threshold for inserting paragraph breaks
 
 
 @dataclass

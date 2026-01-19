@@ -647,11 +647,22 @@ def run_entity_extraction(
                 STATE.entity_results.append(
                     {
                         "page": page_idx + 1,
+                        "score": None,
                         "page_text": "",
                         "entities": {},
                     }
                 )
                 continue
+
+            # Calculate aggregated OCR confidence score for the page
+            scores = []
+            for item in items:
+                # Prefer transformer_score if available
+                if item.transformer_score is not None:
+                    scores.append(item.transformer_score)
+                elif item.score is not None:
+                    scores.append(item.score)
+            page_score = sum(scores) / len(scores) if scores else None
 
             markdown_text = ocr_data_to_markdown(
                 items,
@@ -679,6 +690,7 @@ def run_entity_extraction(
             STATE.entity_results.append(
                 {
                     "page": page_idx + 1,
+                    "score": page_score,
                     "page_text": markdown_text,
                     "entities": extracted,
                 }

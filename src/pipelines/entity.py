@@ -14,6 +14,39 @@ from src.entity_extraction import QwenEntityExtractor, QwenModels
 from .base import BasePipeline
 
 
+def _calculate_page_score(page_data: list[dict]) -> float | None:
+    """
+    Calculate aggregated OCR confidence score for a page.
+
+    Uses transformer_score if available, otherwise falls back to score.
+    Returns the mean of all available scores, or None if no scores exist.
+
+    Args:
+        page_data: List of OCR result items from a page
+
+    Returns:
+        Mean score as float, or None if no scores available
+
+    """
+    scores: list[float] = []
+
+    for item in page_data:
+        # Prefer transformer_score if available
+        transformer_score = item.get("transformer_score")
+        if transformer_score is not None:
+            scores.append(float(transformer_score))
+        else:
+            # Fall back to regular score
+            score = item.get("score")
+            if score is not None:
+                scores.append(float(score))
+
+    if not scores:
+        return None
+
+    return sum(scores) / len(scores)
+
+
 class EntityExtractionPipeline(BasePipeline):
     """Pipeline for entity extraction."""
 
@@ -64,9 +97,14 @@ class EntityExtractionPipeline(BasePipeline):
 
             logger.info(f"Page {page['page_result']['page']}: {extracted_entities}")
 
+            # Calculate aggregated OCR confidence score for the page
+            page_data = page["page_result"].get("data", [])
+            page_score = _calculate_page_score(page_data)
+
             page_results.append(
                 {
                     "page": page["page_result"]["page"],
+                    "score": page_score,
                     "page_text": markdown_page,
                     "entities": extracted_entities,
                 }

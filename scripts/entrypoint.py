@@ -1,4 +1,4 @@
-"""Entrypoint script for NER-OCR container."""
+"""Entrypoint script for NER-OCR pipelines and workbench UI."""
 
 import argparse
 import sys
@@ -6,75 +6,103 @@ from pathlib import Path
 
 from loguru import logger
 
-from src.config import load_config
-from src.pipelines import EntityExtractionPipeline, OCRPipeline
 
-
-def parse_args() -> argparse.Namespace:
-    """Parse command line arguments."""
+def create_parser() -> argparse.ArgumentParser:
+    """Create argument parser with subcommands for each mode."""
     parser = argparse.ArgumentParser(
-        description="NER-OCR container entrypoint",
+        description="NER-OCR - Document OCR and Entity Extraction",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    subparsers = parser.add_subparsers(
+        dest="mode",
+        title="modes",
+        description="Available modes",
+        help="Run 'entrypoint.py <mode> --help' for mode-specific options",
+    )
+
+    # OCR subcommand
+    ocr_parser = subparsers.add_parser(
+        "ocr",
+        help="Run OCR pipeline on documents",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Modes:
-  ocr        - Run OCR pipeline on documents
-  entity     - Run entity extraction pipeline
-  workbench  - Launch interactive web UI (Gradio)
-
 Examples:
-  # Run OCR pipeline
-  python entrypoint.py --mode ocr -i /data/input -o /data/output
-
-  # Run entity extraction
-  python entrypoint.py --mode entity -i /data/input -o /data/output
-
-  # Launch workbench UI
-  python entrypoint.py --mode workbench --port 7860
+  python entrypoint.py ocr -i /data/input -o /data/output
+  python entrypoint.py ocr -i ./docs -o ./results --config custom.yaml
         """,
     )
+    _add_pipeline_args(ocr_parser)
 
-    parser.add_argument(
-        "--mode",
-        choices=["ocr", "entity", "workbench"],
-        default="ocr",
-        help="Pipeline mode: ocr, entity, or workbench (interactive UI)",
+    # Entity extraction subcommand
+    entity_parser = subparsers.add_parser(
+        "entity",
+        help="Run entity extraction pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python entrypoint.py entity -i /data/input -o /data/output
+  python entrypoint.py entity -i ./docs -o ./results --config custom.yaml
+        """,
     )
+    _add_pipeline_args(entity_parser)
 
-    # Pipeline mode arguments
-    parser.add_argument(
-        "-i", "--input", help="Input directory/file (required for ocr/entity modes)"
+    # Workbench subcommand
+    workbench_parser = subparsers.add_parser(
+        "workbench",
+        help="Launch interactive web UI (Gradio)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python entrypoint.py workbench
+  python entrypoint.py workbench --port 8080
+  python entrypoint.py workbench --auth admin password
+        """,
     )
-    parser.add_argument(
-        "-o", "--output", help="Output directory (required for ocr/entity modes)"
-    )
-    parser.add_argument("--config", default="config.yaml", help="Config YAML path")
-
-    # Workbench mode arguments
-    parser.add_argument(
+    workbench_parser.add_argument(
         "--host",
         default="0.0.0.0",  # noqa: S104
-        help="Host for workbench mode (default: 0.0.0.0)",
+        help="Host to bind to (default: 0.0.0.0)",
     )
-    parser.add_argument(
+    workbench_parser.add_argument(
         "--port",
         type=int,
         default=7860,
-        help="Port for workbench mode (default: 7860)",
+        help="Port to bind to (default: 7860)",
     )
-    parser.add_argument(
-        "--auth-user",
-        help="Username for workbench authentication",
-    )
-    parser.add_argument(
-        "--auth-pass",
-        help="Password for workbench authentication",
+    workbench_parser.add_argument(
+        "--share",
+        action="store_true",
+        help="Create a public Gradio link (not recommended for TRE)",
     )
 
-    return parser.parse_args()
+    return parser
+
+
+def _add_pipeline_args(parser: argparse.ArgumentParser) -> None:
+    """Add common pipeline arguments to a subparser."""
+    parser.add_argument(
+        "-i",
+        "--input",
+        required=True,
+        help="Input directory or file path",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        required=True,
+        help="Output directory path",
+    )
+    parser.add_argument(
+        "--config",
+        default="config.yaml",
+        help="Config YAML path (default: config.yaml)",
+    )
 
 
 def run_workbench(args: argparse.Namespace) -> int:
     """Launch the workbench UI."""
+    # Import here to avoid loading heavy dependencies on --help
     from src.ui.app import launch_workbench
 
     logger.info("=" * 60)
@@ -82,19 +110,13 @@ def run_workbench(args: argparse.Namespace) -> int:
     logger.info("=" * 60)
     logger.info(f"Host: {args.host}")
     logger.info(f"Port: {args.port}")
-    logger.info(f"Auth: {'enabled' if args.auth_user else 'disabled'}")
     logger.info("=" * 60)
-
-    auth = None
-    if args.auth_user and args.auth_pass:
-        auth = (args.auth_user, args.auth_pass)
 
     try:
         launch_workbench(
             host=args.host,
             port=args.port,
-            share=False,  # Never share in TRE
-            auth=auth,
+            share=args.share,
         )
     except KeyboardInterrupt:
         logger.info("Shutting down workbench...")
@@ -106,16 +128,10 @@ def run_workbench(args: argparse.Namespace) -> int:
         return 0
 
 
-# TO DO: resolve PLR0911
-def run_pipeline(args: argparse.Namespace) -> int:  # noqa: PLR0911
+def run_pipeline(args: argparse.Namespace) -> int:
     """Run OCR or entity extraction pipeline."""
-    # Validate required arguments for pipeline modes
-    if not args.input:
-        logger.error("--input/-i is required for ocr/entity modes")
-        return 1
-    if not args.output:
-        logger.error("--output/-o is required for ocr/entity modes")
-        return 1
+    from src.config import load_config
+    from src.pipelines import EntityExtractionPipeline, OCRPipeline
 
     # Validate paths
     config_path = Path(args.config)
@@ -136,36 +152,38 @@ def run_pipeline(args: argparse.Namespace) -> int:  # noqa: PLR0911
         config = load_config(config_path)
         logger.info(f"Loaded config from {config_path}")
     except Exception as e:  # noqa: BLE001
-        error_msg = f"Failed to load config: {e}"
-        logger.error(error_msg)
+        logger.error(f"Failed to load config: {e}")
         return 1
 
-    # Run pipeline(s)
+    # Run pipeline
     pipeline: OCRPipeline | EntityExtractionPipeline
 
     try:
         if args.mode == "ocr":
             logger.info("Running OCR pipeline")
             pipeline = OCRPipeline(config)
-            pipeline.run(input_path, output_path)
-
-        elif args.mode == "entity":
+        else:
             logger.info("Running entity extraction pipeline")
             pipeline = EntityExtractionPipeline(config)
-            pipeline.run(input_path, output_path)
+
+        pipeline.run(input_path, output_path)
 
     except Exception as e:  # noqa: BLE001
-        error_msg = f"Pipeline failed: {e}"
-        logger.error(error_msg)
+        logger.error(f"Pipeline failed: {e}")
         return 1
-    else:
-        logger.info("Pipeline completed successfully")
-        return 0
+
+    logger.info("Pipeline completed successfully")
+    return 0
 
 
 def main() -> int:
     """Run the main entrypoint."""
-    args = parse_args()
+    parser = create_parser()
+    args = parser.parse_args()
+
+    if args.mode is None:
+        parser.print_help()
+        return 0
 
     if args.mode == "workbench":
         return run_workbench(args)

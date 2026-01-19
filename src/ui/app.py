@@ -1385,7 +1385,6 @@ def launch_workbench(
     port: int = 7860,
     *,
     share: bool = False,
-    auth: tuple[str, str] | None = None,
 ) -> None:
     """Launch the workbench UI."""
     logger.info(f"Starting NER-OCR Workbench on http://{host}:{port}")
@@ -1410,7 +1409,6 @@ def launch_workbench(
         server_name=host,
         server_port=port,
         share=share,
-        auth=auth,
         show_error=True,
         quiet=False,
         css=custom_css,

@@ -138,6 +138,36 @@ class PaddleOCRWrapper(BaseOCRProcessor):
             f"PaddleOCR wrapper initialized with max_side_limit={max_side_limit}"
         )
 
+    def _get_processed_image(
+        self, result: dict[str, Any], fallback_image: np.ndarray | None = None
+    ) -> np.ndarray | None:
+        """
+        Extract the processed image from PaddleOCR result.
+
+        When doc_unwarping or other preprocessing is enabled, PaddleOCR stores
+        the processed image in doc_preprocessor_res['output_img']. This method
+        extracts that image, falling back to the provided fallback image if not available.
+
+        Args:
+            result: Single page result from PaddleOCR
+            fallback_image: Fallback image if no processed image is available
+
+        Returns:
+            Processed image array (BGR format) or fallback image
+
+        """
+        try:
+            doc_preprocessor_res = result.get("doc_preprocessor_res")
+            if doc_preprocessor_res is not None:
+                output_img = doc_preprocessor_res.get("output_img")
+                if output_img is not None:
+                    logger.debug("Using processed image from doc_preprocessor_res")
+                    return output_img
+        except (KeyError, TypeError, AttributeError) as e:
+            logger.debug(f"Could not extract processed image: {e}")
+
+        return fallback_image
+
     def _parse_ocr_result(
         self, result: dict[str, Any], original_image: np.ndarray | None = None
     ) -> list[OCRResult]:
@@ -146,7 +176,8 @@ class PaddleOCRWrapper(BaseOCRProcessor):
 
         Args:
             result: Single page result from PaddleOCR
-            original_image: Original cv2 image for extracting bounding box images
+            original_image: Image for extracting bounding box images (should be
+                the processed/unwarped image when doc_unwarping is enabled)
 
         Returns:
             List of OCRResult objects
@@ -217,11 +248,13 @@ class PaddleOCRWrapper(BaseOCRProcessor):
         # Process results
         page_results = []
         for result in results:
-            parsed_result = self._parse_ocr_result(result, processed_image)
+            # Use processed/unwarped image from PaddleOCR if available
+            display_image = self._get_processed_image(result, processed_image)
+            parsed_result = self._parse_ocr_result(result, display_image)
             page_result = PageResult(
                 page=1,  # Images have a single page
                 data=parsed_result,
-                original_image=processed_image,
+                original_image=display_image,
             )
             page_results.append(page_result)
 
@@ -260,16 +293,18 @@ class PaddleOCRWrapper(BaseOCRProcessor):
         # Process results
         page_results = []
         for i, result in enumerate(results):
-            # Get corresponding image
-            page_image = pdf_images[i] if i < len(pdf_images) else None
-            if page_image is None:
+            # Get corresponding fallback image from PDF conversion
+            fallback_image = pdf_images[i] if i < len(pdf_images) else None
+            if fallback_image is None:
                 logger.warning(f"No corresponding image found for page {i}")
 
-            parsed_result = self._parse_ocr_result(result, page_image)
+            # Use processed/unwarped image from PaddleOCR if available
+            display_image = self._get_processed_image(result, fallback_image)
+            parsed_result = self._parse_ocr_result(result, display_image)
             page_result = PageResult(
                 page=result["page_index"] + 1,
                 data=parsed_result,
-                original_image=page_image,
+                original_image=display_image,
             )
             page_results.append(page_result)
 

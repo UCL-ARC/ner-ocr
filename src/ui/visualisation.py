@@ -143,7 +143,11 @@ def render_entity_results(entity_results: list[dict]) -> str:
     md_parts = []
     for page_result in entity_results:
         page_num = page_result.get("page", "?")
-        md_parts.append(f"## Page {page_num}\n")
+        score = page_result.get("score")
+        if score is not None:
+            md_parts.append(f"## Page {page_num} (OCR Confidence: {score:.1%})\n")
+        else:
+            md_parts.append(f"## Page {page_num}\n")
 
         entities = page_result.get("entities", {})
         if not entities:

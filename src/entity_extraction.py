@@ -127,7 +127,13 @@ class QwenEntityExtractor(EntityExtractor):
 
         base_prompt = kwargs.get(
             "system_prompt",
-            "Extract the following entities (make sure you extract ALL entities) from the text and return them in the specified format:",
+            (
+                "Extract the following entities (make sure you extract ALL entities) "
+                "from the text and return them in the specified format.\n\n"
+                "Important: If an address in the text is written as 'same' or 'same address', "
+                "it refers to the other address already mentioned in the document. "
+                "Resolve it to that full address when populating the entity fields."
+            ),
         )
         system_prompt = f"{base_prompt}\n{format_instructions}"
         messages = [

@@ -348,7 +348,7 @@ pre-commit install
 ### Running the Workbench UI
 
 ```bash
-uv run python -m scripts.run_ui
+uv run python scripts/entrypoint.py workbench
 ```
 
 Then open http://localhost:7860 in your browser.

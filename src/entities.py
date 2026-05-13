@@ -1,5 +1,7 @@
 """Entities data models."""
 
+from typing import Literal
+
 from loguru import logger
 from pydantic import BaseModel, Field
 
@@ -9,17 +11,31 @@ from .entity_builder import load_entities_from_yaml
 class AddressEntity(BaseModel):
     """Data model for an address entity."""
 
+    model_config = {
+        "json_schema_extra": {
+            "description": (
+                "An address entity. If the source text indicates 'same' or 'same address', "
+                "resolve it to the full address it refers to elsewhere in the text."
+            )
+        }
+    }
+
     street: str | None = Field(None, description="Street address")
     city: str | None = Field(None, description="City name")
     state: str | None = Field(None, description="State or province")
     postal_code: str | None = Field(None, description="Postal or ZIP code")
     country: str | None = Field(None, description="Country name")
     raw_text: str = Field(
-        ..., description="Raw string of the address without formatting"
+        ...,
+        description=(
+            "Raw string of the address without formatting. "
+            "If the text just says 'same' or 'same address', copy the full address "
+            "it refers to from elsewhere in the document."
+        ),
     )
-    address_type: str | None = Field(
+    address_type: Literal["place of birth", "place of residence"] | None = Field(
         None,
-        description="Type of address. Either place of birth or place of residence",
+        description="Type of address: 'place of birth' or 'place of residence'",
     )
 
 
